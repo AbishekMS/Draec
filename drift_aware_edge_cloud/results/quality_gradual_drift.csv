@@ -1,0 +1,2 @@
+stage,n_rows,n_valid,n_validation_failed,n_range_violation,n_outlier,n_filled,n_unfilled,note
+drifted_gradual_drift,54000,54000,350,350,54000,0,0,

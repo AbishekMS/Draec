@@ -1,0 +1,58 @@
+# =============================================================================
+# gradual_drift.yaml — EXPERIMENT 3: GRADUAL DRIFT
+# =============================================================================
+# Inherits from default.yaml; overrides ONLY the drift block.
+#
+# Profile:   A -> A -> A/B -> A/B -> B -> B   (linear ramp, then persists)
+# Measures:  detection performance under a weak early signal, prediction
+#            degradation, adaptation
+#
+# Why this scenario is harder than sudden drift, and why that is the point:
+# during the ramp the change per sample is small, so ADWIN's statistical test
+# needs more evidence before it fires. Detection delay is therefore expected to
+# be longer here, and "detection delay" itself becomes ambiguous -- delay is
+# measured from ramp ONSET, but a detector arguably cannot fire until the
+# effect is large enough to matter. Both interpretations are reported in the
+# drift metrics rather than picking whichever looks better.
+# =============================================================================
+
+_extends: default.yaml
+
+meta:
+  name: gradual_drift
+  description: >
+    Linear ramp from no drift to full magnitude over 20% of the inference
+    stream, beginning at 40% and persisting thereafter. Tests whether the
+    detector responds to a slowly accumulating change rather than only to
+    abrupt steps.
+  phase: 1
+  config_version: 1
+
+drift:
+  scenario: gradual
+
+  # Fractions are of the INFERENCE STREAM (dataset.files.test1, 54000 rows), per
+  # `drift.reference_stream: inference_stream` in default.yaml.
+  #
+  # Ramp spans row 21600 -> 32400 of test1 (10800 rows = 3 h at 1 Hz), then
+  # holds at full magnitude for the final 21600 rows, which is the post-drift
+  # evaluation region.
+  start_fraction: 0.40
+  duration_fraction: 0.20           # ramp length; magnitude interpolates 0 -> m
+  end_fraction: null                # holds at full magnitude to end of stream
+
+  # Same terminal magnitude as sudden_drift, deliberately: it isolates the
+  # effect of ONSET SHAPE. If the terminal magnitudes differed, any difference
+  # in detection delay would confound rate-of-change with magnitude.
+  magnitude: 2.0                    # ASSUMPTION [A14], shared with sudden_drift
+  magnitude_units: baseline_sigma
+  mechanism: offset
+
+  affected_features:
+    explicit: null
+    selection: top_variance
+    n_features: 5
+    actuator_policy: exclude
+
+  # Same channels as sudden_drift (top_variance is deterministic given a fixed
+  # baseline), so the two scenarios differ in onset shape alone.

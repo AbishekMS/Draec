@@ -1,0 +1,102 @@
+# =============================================================================
+# stress_test.yaml — EXPERIMENT 7: COMBINED STRESS
+# =============================================================================
+# Inherits from default.yaml; overrides ONLY the drift block in Phase 1.
+#
+# SCOPE WARNING -- THIS FILE IS INTENTIONALLY INCOMPLETE IN PHASE 1
+# The full combined-stress experiment is:
+#     drift + high latency + low bandwidth + high Edge CPU
+# Only the DRIFT component is configurable in Phase 1. Network and Edge
+# resource parameters are NOT specified here, because inventing latency,
+# bandwidth, and CPU numbers before the components that consume them exist
+# would bury unjustified constants in a config file. Those sections are added
+# in Phase 5, when src/network/ and src/resources/ are implemented and their
+# values can be justified. See the PENDING PHASE 5 note at the end of this file.
+#
+# Profile:   progressive, monotonically worsening degradation in discrete steps
+# Measures:  behaviour under sustained and intensifying degradation -- the
+#            hardest condition in the study
+# =============================================================================
+
+_extends: default.yaml
+
+meta:
+  name: stress_test
+  description: >
+    Progressive drift that worsens in five discrete steps across the inference
+    stream, affecting twice as many channels as the single-drift scenarios and
+    reaching a larger terminal magnitude. Phase 1 covers the drift component
+    only; network and resource stress are added in Phase 5.
+  phase: 1
+  config_version: 1
+  incomplete_until_phase: 5
+
+drift:
+  scenario: stress
+
+  # Fractions are of the INFERENCE STREAM (dataset.files.test1, 54000 rows), per
+  # `drift.reference_stream: inference_stream` in default.yaml.
+  #
+  # Earliest onset of the three scenarios -- row 18900 -- so degradation
+  # intensifies across the remaining 35100 rows (five plateaus of 7020 rows)
+  # and the system is never allowed to settle.
+  start_fraction: 0.35
+  end_fraction: null
+
+  # ASSUMPTION [A15]: terminal magnitude 3.0 baseline sigma, larger than the
+  # 2.0 used in the single-drift scenarios. Chosen to be clearly more severe
+  # while remaining within the physical-plausibility clipping bounds. Requires
+  # the same pilot calibration as [A14] and is not yet justified.
+  magnitude: 3.0
+  magnitude_units: baseline_sigma
+  mechanism: offset
+
+  # Twice as many affected channels as the single-drift scenarios, so the
+  # degradation is broad as well as deep.
+  affected_features:
+    explicit: null
+    selection: top_variance
+    n_features: 10                  # ASSUMPTION [A16]
+    actuator_policy: exclude
+
+  stress:
+    progressive: true               # magnitude ramps monotonically 0 -> 3.0
+    steps: 5                        # in five discrete plateaus
+
+  # Physical clipping matters most here: at 3.0 sigma on ten channels,
+  # attenuation is likely. The generator must report realised vs requested
+  # magnitude so the actual severity is measured rather than assumed.
+  clip_to_physical_range: true
+  report_realised_magnitude: true
+
+# -----------------------------------------------------------------------------
+# PENDING PHASE 5 -- documented, deliberately NOT given values
+# -----------------------------------------------------------------------------
+# When src/network/ and src/resources/ exist, this file gains:
+#
+#   network:
+#     scenario: combined_degradation
+#     latency_ms:        <justified in Phase 5>
+#     bandwidth_mbps:    <justified in Phase 5>
+#     packet_loss:       <justified in Phase 5>
+#
+#   edge_resources:
+#     scenario: overloaded
+#     cpu_utilisation:   <justified in Phase 5>
+#     memory_utilisation:<justified in Phase 5>
+#     queue_length:      <justified in Phase 5>
+#
+# Implemented by, respectively:
+#   src/network/network_model.py    -- latency, bandwidth, packet loss
+#   src/resources/edge_resources.py -- CPU, memory, queue length
+#
+# Until then, running this config exercises drift stress only. Any report of
+# results from it must state that scope limitation explicitly.
+#
+# This is a COMMENT, not a YAML key, on purpose. The Phase 1 comparability
+# invariant is that a scenario overlay differs from default.yaml ONLY inside
+# `meta` and `drift` -- that is what makes cross-scenario results attributable
+# to drift alone. A `pending_phase_5:` mapping would be an exception to that
+# invariant for no operational gain, and would duplicate the text above. The
+# machine-readable marker that this file is incomplete is
+# `meta.incomplete_until_phase: 5`.

@@ -1,0 +1,47 @@
+# Drift-Aware Adaptive Edge-Cloud-Hybrid Orchestration for Non-Stationary IoT
+# ---------------------------------------------------------------------------
+# Versions below are PINNED to the exact versions verified working in the
+# project virtual environment (D:/tactics/.venv) on Python 3.14.2 / win_amd64.
+# Every package resolved to a native cp314 wheel; nothing was built from source.
+#
+# Reproduce with:
+#   python -m venv .venv
+#   .venv/Scripts/python.exe -m pip install -r requirements.txt
+#
+# Core numerics / data
+numpy==2.4.4
+scipy==1.18.1
+pandas==3.0.5
+
+# Machine learning (Edge + Cloud models, Phase 2)
+scikit-learn==1.9.0
+xgboost==3.4.1
+
+# Online / streaming ML and drift detection (ADWIN, Phase 3)
+river==0.26.1
+
+# Discrete-event system simulation (Phase 6)
+simpy==4.1.2
+
+# Visualisation (Phase 10)
+matplotlib==3.11.1
+
+# Configuration
+PyYAML==6.0.3
+
+# Testing
+pytest==9.1.1
+
+# ---------------------------------------------------------------------------
+# Deliberately NOT dependencies of the core simulation.
+# Add only if/when the corresponding optional feature is actually built:
+#   seaborn            - optional plot styling (Phase 10)
+#   torch              - optional neural Cloud model (Phase 2 extension)
+#   imbalanced-learn   - optional class-imbalance handling
+#   mlflow             - optional experiment tracking (must remain optional)
+#   streamlit          - optional dashboard (must NOT be a core dependency)
+#
+# Explicitly EXCLUDED during the simulation phase, per specification:
+#   paho-mqtt          - real-hardware messaging (Mosquitto/MQTT)
+#   influxdb-client    - real-hardware time-series storage
+# These belong to the later physical deployment, not this simulation.

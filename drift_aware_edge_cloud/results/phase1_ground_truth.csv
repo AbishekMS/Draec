@@ -1,0 +1,2 @@
+scenario,mechanism,drift_start_index,drift_end_index,n_drifted_rows,affected_channels,requested_magnitude_sigma,realised_magnitude_sigma
+sudden_drift,offset,2500,5000,2500,P3_LCV01D|P3_LCP01D|P3_LIT01|P3_FIT01|P4_ST_GOV,2.0,1.7519386211100507

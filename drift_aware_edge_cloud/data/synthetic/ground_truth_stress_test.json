@@ -1,0 +1,32 @@
+{
+  "scenario": "stress",
+  "drift_start_index": 18900,
+  "drift_end_index": 54000,
+  "affected_features": [
+    "P3_LCV01D",
+    "P3_LCP01D",
+    "P3_LIT01",
+    "P4_ST_GOV",
+    "P3_FIT01",
+    "P3_PIT01",
+    "x1003_10_SETPOINT_OUT",
+    "P1_FT02Z",
+    "P1_FT02",
+    "P2_SCO"
+  ],
+  "drift_magnitude": 3.0,
+  "realised_magnitude": {
+    "P3_LCV01D": 1.536932494079801,
+    "P3_LCP01D": 1.4923056049953913,
+    "P3_LIT01": 1.4258669519697462,
+    "P4_ST_GOV": 1.7999997397431071,
+    "P3_FIT01": 1.6874885897187715,
+    "P3_PIT01": 1.722642297332375,
+    "x1003_10_SETPOINT_OUT": 1.359973469264915,
+    "P1_FT02Z": 1.3600089834350781,
+    "P1_FT02": 1.432861673840722,
+    "P2_SCO": 1.004293858247604
+  },
+  "mechanism": "offset",
+  "random_seed": 42
+}

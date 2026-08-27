@@ -1,0 +1,237 @@
+# PROJECT_STATE — generated, do not edit by hand
+
+Generated `2026-08-26 15:53:32Z` by `state_report.py` from 68 code, config
+and provenance files. Surface fingerprint **`b75b19f5df2c6264`**.
+
+Regenerate after any change:
+
+```bash
+cd drift_aware_edge_cloud && ../.venv/Scripts/python.exe state_report.py --write
+```
+
+Everything below was read off the tree just now. Nothing here is a
+remembered value, and nothing here is an experimental result — this
+script runs no test and no model. For pass counts, run the commands in
+[Verification](#verification) yourself.
+
+## Where the rest of the context lives
+
+| File | Holds |
+|---|---|
+| `AGENT_CONTEXT.md` | The contract: what you must not do, how to work, how to verify. **Read first.** |
+| `DECISIONS.md` | Append-only log of decisions, errors and fixes, with the reasoning. Explains *why* the tree looks like this. |
+| `README.md` | The research design: question, hypothesis, causal chain, dataset diagnostics, scope. |
+| `data/raw/PROVENANCE.json` | Machine-readable dataset provenance, checksums, every measured diagnostic and finding. |
+| `config/*.yaml` | Every parameter and assumption. Nothing is hard-coded in Python. |
+| `tests/test_integrity.py` | The prohibitions as executable tests — the only form of context that cannot be forgotten. |
+
+## Implementation status
+
+Read from the `Status :` header of 33 source modules: **7 IMPLEMENTED**, **26 not**.
+
+- **Phase 1 / Step 3** — complete
+  - [x] `src/data/generator.py` — IMPLEMENTED
+  - [x] `src/data/loader.py` — IMPLEMENTED
+  - [x] `src/data/stream.py` — IMPLEMENTED
+- **Phase 1 / Step 4** — complete
+  - [x] `src/data/preprocessing.py` — IMPLEMENTED
+- **Phase 1 / Step 5** — complete
+  - [x] `src/utils/config.py` — IMPLEMENTED
+  - [x] `src/utils/logger.py` — IMPLEMENTED
+  - [x] `src/utils/seed.py` — IMPLEMENTED
+- **Phase 2** — not started
+  - [ ] `src/models/cloud_model.py` — NOT IMPLEMENTED
+  - [ ] `src/models/edge_model.py` — NOT IMPLEMENTED
+  - [ ] `src/models/trainer.py` — NOT IMPLEMENTED
+- **Phase 3** — not started
+  - [ ] `src/drift/adwin_detector.py` — NOT IMPLEMENTED
+  - [ ] `src/drift/persistence.py` — NOT IMPLEMENTED
+  - [ ] `src/drift/severity.py` — NOT IMPLEMENTED
+- **Phase 4** — not started
+  - [ ] `src/reliability/estimator.py` — NOT IMPLEMENTED
+- **Phase 5** — not started
+  - [ ] `src/network/lri.py` — NOT IMPLEMENTED
+  - [ ] `src/network/network_model.py` — NOT IMPLEMENTED
+  - [ ] `src/resources/edge_resources.py` — NOT IMPLEMENTED
+- **Phase 6** — not started
+  - [ ] `src/resources/controller.py` — NOT IMPLEMENTED
+  - [ ] `src/resources/wds.py` — NOT IMPLEMENTED
+  - [ ] `src/simulation/cloud.py` — NOT IMPLEMENTED
+  - [ ] `src/simulation/edge.py` — NOT IMPLEMENTED
+  - [ ] `src/simulation/environment.py` — NOT IMPLEMENTED
+  - [ ] `src/simulation/hybrid.py` — NOT IMPLEMENTED
+- **Phase 7** — not started
+  - [ ] `src/adaptation/deployment.py` — NOT IMPLEMENTED
+  - [ ] `src/adaptation/retrainer.py` — NOT IMPLEMENTED
+  - [ ] `src/adaptation/validator.py` — NOT IMPLEMENTED
+- **Phase 8** — not started
+  - [ ] `adaptation/baselines/cloud_only.py` — NOT IMPLEMENTED
+  - [ ] `adaptation/baselines/edge_only.py` — NOT IMPLEMENTED
+  - [ ] `adaptation/baselines/hecif_baseline.py` — NOT IMPLEMENTED
+- **Phase 10** — not started
+  - [ ] `src/metrics/decision.py` — NOT IMPLEMENTED
+  - [ ] `src/metrics/drift.py` — NOT IMPLEMENTED
+  - [ ] `src/metrics/prediction.py` — NOT IMPLEMENTED
+  - [ ] `src/metrics/system.py` — NOT IMPLEMENTED
+
+## Blocking decisions — reserved to the user
+
+Configuration keys deliberately left unset rather than guessed:
+
+| Key | Value |
+|---|---|
+| `dataset.task` | `unresolved` |
+| `dataset.target_column` | `null` |
+| `dataset.label_column` | `null` |
+| `dataset.label_file` | `null` |
+| `dataset.positive_class` | `null` |
+
+### TASK_UNRESOLVED — `dataset.task`
+
+HAI ships no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` is resolved, src/data/loader.py cannot be written.
+
+Options on record, with their consequences:
+
+- **`forecasting_regression`** — target: next-step value of one or more continuous process channels. Primary metric changes from post-drift Macro-F1 to a post-drift regression error (e.g. RMSE/MAE). Deviates from the specification's stated primary metric.
+  - _leakage_note_: Must exclude the target's own future values and, for actuator targets, its command/feedback sibling. See `finding_command_feedback_pairs`.
+- **`state_classification`** — target: a discrete process/actuator state derived from HAI's own columns. Preserves post-drift Macro-F1 as the primary metric.
+  - _risk_: This is the failure mode that disqualified SWaT: PLC-controlled actuator states can be trivially recoverable from sensors, collapsing accuracy headroom and forcing R_edge ~= R_cloud, which kills the reliability axis of the WDS. MUST be probed empirically before adoption, exactly as SWaT was probed.
+  - _leakage_note_: Requires exclude_target_sibling: true.
+- **`labels_from_hai_labels`** — target: official HAI attack labels. Preserves post-drift Macro-F1 and gives a genuine anomaly-detection task.
+  - _requires_: An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). Not present in data/raw/. Config key `dataset.label_file` is reserved for it and is currently null.
+  - _status_: REQUIRES_ADDITIONAL_FILE
+
+_No label was fabricated. dataset.label_column is null and dataset.task is 'unresolved' rather than being guessed._
+
+### Open findings
+
+Each was measured and deliberately **not** repaired, because repairing it would be a scientific choice.
+
+- **`finding_no_label_column`** (BLOCKER) — None of the three supplied HAI files contains an attack/anomaly label column.
+  - action taken: dataset.label_column: null, dataset.label_map: null, dataset.positive_class: null, dataset.min_required_classes: null, dataset.task: unresolved. No label fabricated.
+  - awaiting: the blocking question above
+- **`finding_near_collinear_pairs`** (OPEN_DECISION) — Four continuous channel pairs on the baseline exceed |Pearson r| > 0.999, and none of them appear in dataset.features.command_feedback_pairs, which covers only the six P1_ actuators.
+  - action taken: NONE -- behaviour deliberately unchanged. Reported rather than silently fixed, per the standing rule 'do not invent scientific assumptions silently'.
+  - awaiting: user decision
+- **`finding_continuous_command_channels`** (OPEN_DECISION) — drift.affected_features.actuator_policy: exclude filters DISCRETE channels only, so continuous control-command channels are still eligible for drift injection. Two of the five channels selected for the single-drift scenarios are command/demand channels rather than sensors.
+  - action taken: NONE -- behaviour deliberately unchanged. actuator_policy currently means 'exclude discrete states', not 'exclude actuators'.
+  - awaiting: user decision
+- **`finding_degenerate_outlier_bounds`** (OPEN_DECISION) — The configured 3xIQR outlier rule degenerates on piecewise-constant ICS channels. When q1 == q3 the band has ZERO width, so every value not exactly equal to that constant is flagged. One such channel saturates the row-level outlier flag at 100%, making it carry no information.
+  - action taken: NONE -- behaviour deliberately unchanged. preprocessing._flag_outliers now DETECTS zero-width bands, names the channels in QualityReport.degenerate_bound_columns, and reports both the saturated and the excluding-degenerate flag rates. Reporting only; not a repair.
+  - awaiting: user decision
+
+### Findings already settled or accepted as measured fact
+
+| Finding | Severity | Resolution |
+|---|---|---|
+| `finding_temporal_acausality` | BLOCKER_RESOLVED_BY_CONFIG | dataset.baseline_source: train1_only (ASSUMPTION [A17]), dataset.allow_acausal_baseline: false, dataset.conca… |
+| `finding_command_feedback_pairs` | LEAKAGE_TRAP | Recorded in config as dataset.features.command_feedback_pairs with dataset.features.exclude_target_sibling: t… |
+| `finding_discrete_vs_continuous` | CORRECTNESS | drift.affected_features.actuator_policy: exclude by default in all Phase 1 scenarios; dataset.features.type_d… |
+| `finding_realised_magnitude_attenuation` | MEASURED_FACT | generator.py measures realised magnitude per channel and records it in GroundTruth.realised_magnitude and sch… |
+| `finding_pre_existing_regime_shift` | MEASURED_FACT | NONE -- this is a property of the real HAI recordings, not a defect |
+
+## Leakage and integrity guards — live configured values
+
+| Key | Value |
+|---|---|
+| `dataset.concatenate_files` | `False` |
+| `dataset.allow_acausal_baseline` | `False` |
+| `dataset.baseline_source` | `train1_only` |
+| `streaming.shuffle` | `False` |
+| `preprocessing.normalization.adaptation` | `frozen_after_baseline` |
+| `preprocessing.normalization.forbid_global_fit` | `True` |
+| `drift.injection_target` | `inference_stream_only` |
+| `drift.modify_labels` | `False` |
+
+Ground-truth consumers, from `ground_truth`:
+
+- **allowed_consumers**: ['metrics', 'plots', 'statistical_evaluation']
+- **forbidden_consumers**: ['models', 'drift_detectors', 'severity', 'persistence', 'reliability', 'controller', 'wds', 'lri', 'edge', 'cloud', 'hybrid', 'adaptation']
+
+Configurations present: `default`, `gradual_drift`, `stress_test`, `sudden_drift`
+
+- `default` — resolves and validates, fingerprint `0babd89711c7`
+- `gradual_drift` — resolves and validates, fingerprint `2bdae7eccbca`
+- `stress_test` — resolves and validates, fingerprint `36ec7754a7d1`
+- `sudden_drift` — resolves and validates, fingerprint `7386af21ec89`
+
+## Raw data
+
+Roles come from `config/default.yaml -> dataset.files`; the file
+names are never written in Python.
+
+| File | Recorded role | Size on disk | Matches record | Modified flag |
+|---|---|---|---|---|
+| `hai-train1.txt` | baseline_train | 162,418,984 | yes | False |
+| `hai-train2.txt` | baseline_validation | 169,121,615 | yes | False |
+| `hai-test1.txt` | inference_stream | 31,255,559 | yes | False |
+
+_SHA-256 not checked in this run; pass `--hash` (or run the `slow` pytest marker) to verify._
+
+## Verification
+
+This script did **not** run any of these. Run them; quote the counts they print.
+
+```bash
+cd drift_aware_edge_cloud
+export PYTHONIOENCODING=utf-8
+../.venv/Scripts/python.exe verify_step2.py
+../.venv/Scripts/python.exe verify_step3.py
+../.venv/Scripts/python.exe verify_step4.py
+../.venv/Scripts/python.exe verify_step5.py
+../.venv/Scripts/python.exe -m pytest -q
+```
+
+Handover artifacts have their own harness, run at session end rather than per edit (it checks this file for staleness, so it fails until it is regenerated):
+
+```bash
+../.venv/Scripts/python.exe verify_handover.py
+```
+
+Test suite on disk, parsed with `ast`:
+
+| Module | Test functions | Marked slow |
+|---|---|---|
+| `tests/test_config.py` | 18 | 0 |
+| `tests/test_generator.py` | 31 | 0 |
+| `tests/test_integrity.py` | 27 | 1 |
+| `tests/test_loader.py` | 33 | 0 |
+| `tests/test_logger.py` | 16 | 0 |
+| `tests/test_preprocessing.py` | 40 | 0 |
+| `tests/test_seed.py` | 17 | 0 |
+| `tests/test_stream.py` | 28 | 0 |
+| **total declared** | **210** | **1** |
+
+Declared functions are not the collected count: `pytest` expands parametrised cases, so the number it reports is higher. The collected/passed count is only knowable by running it.
+
+## Generated output present on disk
+
+Regenerable, not authoritative. `data/synthetic/` must contain only ground-truth sidecars — it is an output directory that nothing reads back as input.
+
+| Directory | Entries |
+|---|---|
+| `results/` | 15 — `features_gradual_drift.csv`, `features_stress_test.csv`, `features_sudden_drift.csv`, `phase1_ground_truth.csv`, `phase1_normalization_absorption.csv`, `phase1_summary.csv`, … (+9 more) |
+| `plots/` | 1 — `phase1_demo.png` |
+| `data/synthetic/` | 4 — `ground_truth.json`, `ground_truth_gradual_drift.json`, `ground_truth_stress_test.json`, `ground_truth_sudden_drift.json` |
+| `data/processed/` | 0 |
+
+## Environment
+
+Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.exe`)
+
+| Package | Installed |
+|---|---|
+| numpy | 2.4.4 |
+| pandas | 3.0.5 |
+| scipy | 1.18.1 |
+| scikit-learn | 1.9.0 |
+| PyYAML | 6.0.3 |
+| xgboost | 3.4.1 |
+| river | 0.26.1 |
+| simpy | 4.1.2 |
+| matplotlib | 3.11.1 |
+| pytest | 9.1.1 |
+
+---
+
+_End of generated report. Fingerprint `b75b19f5df2c6264`; `state_report.py --check` fails if the tree has moved since._

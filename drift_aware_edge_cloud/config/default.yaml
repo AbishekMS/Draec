@@ -1,0 +1,531 @@
+# =============================================================================
+# default.yaml — BASE CONFIGURATION
+# Drift-Aware Adaptive Edge-Cloud-Hybrid Orchestration for Non-Stationary IoT
+# =============================================================================
+#
+# This is the single source of truth for all Phase 1 parameters. The scenario
+# files (sudden_drift.yaml, gradual_drift.yaml, stress_test.yaml) inherit from
+# this file via `_extends` and override ONLY what differs. Never copy this file
+# to make a variant -- duplicated values drift apart and silently make
+# experiments non-comparable.
+#
+# CONVENTIONS USED THROUGHOUT
+#   ASSUMPTION [An] : a value not yet scientifically fixed. Documented,
+#                     configurable, and intended to be justified by a
+#                     sensitivity experiment. Never treated as settled fact.
+#   VERIFY          : a value re-measured from the configured baseline file at
+#                     load time rather than trusted from this file.
+#   VERIFIED        : a value measured directly from the raw HAI files during
+#                     the Step 2 transition. Fact, not assumption.
+#   LEAKAGE         : a rule that exists specifically to prevent data leakage.
+#
+# This file is inert data. It contains NO later-phase parameters (WDS weights,
+# LRI budgets, model hyperparameters). Those are deliberately absent rather
+# than guessed -- see section `reserved_for_later_phases` at the end.
+# =============================================================================
+
+meta:
+  name: default
+  description: >
+    Phase 1 baseline. Real HAI foundation, NO drift injected. This doubles as
+    the experimental control condition (Experiment 1, "no drift"), which exists
+    to verify the controller does not disturb normal operation.
+  phase: 1
+  config_version: 1
+
+# -----------------------------------------------------------------------------
+# 1. REPRODUCIBILITY
+# -----------------------------------------------------------------------------
+reproducibility:
+  # Master seed. Every stochastic component derives a sub-seed from this so that
+  # changing one component's randomness does not perturb the others.
+  random_seed: 42
+
+  # Multi-seed protocol for statistical evaluation. Used in later phases; listed
+  # here so the seed set is fixed BEFORE any results are seen (prevents
+  # post-hoc seed cherry-picking).
+  seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+  # Fail loudly rather than silently producing non-reproducible runs.
+  strict: true
+
+# -----------------------------------------------------------------------------
+# 2. DATASET
+# -----------------------------------------------------------------------------
+dataset:
+  # mode: hai  -> real HAI files (the mode used for the main results)
+  # mode: csv  -> any generic chronological delimited file, same schema contract
+  mode: hai
+
+  # --- Files and ROLES -----------------------------------------------------
+  # DECISION (2026-08-25): HAI (HIL-based Augmented ICS) replaces SWaT as the
+  # primary real industrial dataset. Roles are declared HERE, never hard-coded
+  # in Python. All three files share an identical 87-column schema (VERIFIED).
+  #
+  # Raw files are byte-identical copies of the supplied originals and are never
+  # modified in place. See data/raw/PROVENANCE.json for checksums.
+  files:
+    train1:
+      path: data/raw/hai-train1.txt
+      role: baseline_train
+      description: "Primary normal/baseline training stream."
+      rows: 280800                 # VERIFIED
+      time_range: ["2022-08-04 18:00:01", "2022-08-08 00:00:00"]
+    train2:
+      path: data/raw/hai-train2.txt
+      role: baseline_validation
+      description: >
+        Additional normal/baseline stream and validation source. WARNING: lies
+        chronologically AFTER test1 (see causality_warning below).
+      rows: 291600                 # VERIFIED
+      time_range: ["2022-08-13 07:00:01", "2022-08-16 16:00:00"]
+    test1:
+      path: data/raw/hai-test1.txt
+      role: inference_stream
+      description: >
+        Test/inference stream. Controlled synthetic drift is injected into THIS
+        stream only. Never concatenated with the training files.
+      rows: 54000                  # VERIFIED
+      time_range: ["2022-08-12 16:00:01", "2022-08-13 07:00:00"]
+
+  # Files are kept SEPARATE. Concatenation would create an artificial regime
+  # change at the seam and confound the injected drift.
+  concatenate_files: false
+
+  # --- CAUSALITY WARNING (VERIFIED, blocks a naive train1+train2 baseline) ---
+  # True chronological order is:  train1 < test1 < train2
+  #   train1 : 2022-08-04 18:00 -> 08-08 00:00
+  #   test1  : 2022-08-12 16:00 -> 08-13 07:00
+  #   train2 : 2022-08-13 07:00 -> 08-16 16:00   (starts 1 s after test1 ends)
+  #
+  # train2 lies ENTIRELY IN THE FUTURE relative to test1. Fitting the baseline
+  # on train1+train2 and then inferring on test1 would use data unavailable at
+  # inference time -- acausal, and a direct violation of the no-leakage rule.
+  #
+  # baseline_source controls this and defaults to the causal choice:
+  #   train1_only        : causal. train1 precedes test1. DEFAULT.
+  #   train1_and_train2  : NOT causal for test1. Ablation/reference use only.
+  baseline_source: train1_only     # ASSUMPTION [A17]
+  allow_acausal_baseline: false    # guard: setting baseline_source to
+                                   # train1_and_train2 requires flipping this
+                                   # flag explicitly and knowingly
+
+  # --- Header / parsing ----------------------------------------------------
+  # VERIFIED: comma-separated despite the .txt extension; clean header with no
+  # padding whitespace. Stripping is kept enabled as a harmless safeguard.
+  format: csv
+  delimiter: ","
+  strip_column_whitespace: true
+  strip_value_whitespace: true
+
+  # --- Time ----------------------------------------------------------------
+  timestamp_column: "timestamp"
+  timestamp_format: "%Y-%m-%d %H:%M:%S"
+  expected_sampling_interval_s: 1
+
+  require_monotonic_timestamps: true
+  # VERIFIED: all three files are perfectly regular -- 0 gaps, 0 duplicate
+  # timestamps, 0 missing cells, exact 1 Hz. The gap machinery is retained for
+  # robustness but is not expected to trigger on HAI.
+  max_gap_s_before_new_block: 2
+
+  # --- Target --------------------------------------------------------------
+  # VERIFIED FINDING: these HAI files contain NO label/attack/anomaly column.
+  # All 87 columns are identical across train1, train2 and test1 (timestamp +
+  # 86 process variables). A name scan found nothing, and no column is constant
+  # in both training files while varying in test1.
+  #
+  # No label has been fabricated. label_column is null and the task type is
+  # UNRESOLVED pending the decision recorded in PROVENANCE.json.
+  #
+  # ASSUMPTION [A1-HAI]: SUPERSEDED. The SWaT binary Normal/Attack assumption
+  # does not transfer to these files.
+  label_column: null
+  label_map: null
+  positive_class: null
+  min_required_classes: null
+
+  # task must be resolved before Phase 2 (models) can be implemented.
+  #   forecasting_regression : predict a continuous process variable from the
+  #                            others; loss = |y - yhat|. No labels needed.
+  #   state_classification   : predict a discrete actuator/state variable.
+  #                            Requires a genuine-headroom check first --
+  #                            deterministic PLC targets were what invalidated
+  #                            the SWaT actuator framing.
+  #   labels_from_hai_labels : use the official HAI label file, if supplied.
+  task: unresolved
+  target_column: null
+  # Optional official HAI label file, if it is provided later. Attack windows
+  # would be EVALUATION-ONLY ground truth, never an inference-time input.
+  label_file: null
+
+  # --- Feature selection ---------------------------------------------------
+  features:
+    # null = every column except timestamp/label/target, minus exclusions.
+    include: null
+    exclude: []
+
+    # Zero-variance columns carry no information. Dropped by CONFIG, never by a
+    # hard-coded drop in source.
+    #
+    # LEAKAGE: variance is computed on the baseline segment ONLY, never on the
+    # whole stream.
+    drop_zero_variance: true
+
+    # VERIFIED: 20 columns are zero-variance in ALL THREE files. Reference only
+    # -- the loader must re-measure on the configured baseline rather than
+    # trusting this list.
+    known_zero_variance_all_files:
+      [P1_PIT01_HH, P1_PP01AD, P1_PP01AR, P1_PP01BD, P1_PP01BR, P1_PP02D,
+       P1_PP02R, P1_SOL01D, P1_SOL03D, P1_STSP, P2_Emerg, P2_OnOff, P2_RTR,
+       P2_TripEx, P2_VTR01, P2_VTR02, P2_VTR03, P2_VTR04, P3_LH01, P3_LL01]
+
+    # --- HAI-SPECIFIC LEAKAGE TRAP (VERIFIED) ------------------------------
+    # HAI exposes command/feedback sibling pairs: <TAG>D is the commanded
+    # setpoint, <TAG>Z the measured position. They track each other almost
+    # exactly. Using one as a feature while predicting the other would leak the
+    # answer and produce a meaningless near-perfect score -- the same failure
+    # that invalidated the SWaT actuator target.
+    #
+    # Enforced only once a target is chosen (task: unresolved today).
+    command_feedback_pairs:
+      P1_FCV01: [P1_FCV01D, P1_FCV01Z]
+      P1_FCV02: [P1_FCV02D, P1_FCV02Z]
+      P1_FCV03: [P1_FCV03D, P1_FCV03Z]
+      P1_LCV01: [P1_LCV01D, P1_LCV01Z]
+      P1_PCV01: [P1_PCV01D, P1_PCV01Z]
+      P1_PCV02: [P1_PCV02D, P1_PCV02Z]
+    exclude_target_sibling: true
+
+    # Process groups, for group-scoped drift injection.
+    # VERIFIED counts: P1=37, P2=24, P3=7, P4=11, x100*=7.
+    process_group_prefixes: [P1_, P2_, P3_, P4_, x100]
+
+    # Column type groups. Critical for drift injection: a continuous offset
+    # applied to a discrete state variable produces physically impossible
+    # values. Auto-detected by cardinality, with an override hook.
+    # VERIFIED on train1: 28 columns <=10 unique values, 58 columns >10.
+    type_detection:
+      method: cardinality          # cardinality | explicit
+      discrete_max_cardinality: 10 # <= this many unique values => discrete
+      explicit_continuous: null
+      explicit_discrete: null
+
+# -----------------------------------------------------------------------------
+# 3. STREAM SEGMENTATION
+# -----------------------------------------------------------------------------
+# The stream is split chronologically. There is NO random splitting anywhere in
+# this project.
+#
+# HAI DIFFERS STRUCTURALLY FROM SWaT HERE. SWaT was one file, so the baseline
+# had to be a leading fraction of it. HAI supplies a physically separate
+# baseline file (train1), which is strictly better: the inference stream
+# (test1) need not be consumed to establish the baseline, so the full 54,000
+# rows remain available for drift injection and evaluation.
+split:
+  # Where baseline statistics and (later) initial models come from.
+  #   separate_file  : use dataset.baseline_source (train1). DEFAULT for HAI.
+  #   leading_fraction: carve the leading fraction out of the inference stream.
+  #                     Retained for single-file datasets and as an ablation.
+  mode: separate_file
+
+  # Only used when mode: leading_fraction.
+  # ASSUMPTION [A2]: 30%. Sensitivity experiment planned.
+  baseline_fraction: 0.30
+
+  # Guard: drift must never be injected inside the baseline. Under HAI's
+  # separate_file mode this holds by construction -- drift is injected into
+  # test1, and the baseline is a different file entirely.
+  enforce_drift_after_baseline: true
+
+  # Optional cap on baseline rows, for fast smoke tests. null = use all.
+  # NOTE: train1 is 280,800 rows at 1 Hz (78 h).
+  max_baseline_rows: null
+
+# -----------------------------------------------------------------------------
+# 4. PREPROCESSING  (causal / online only)
+# -----------------------------------------------------------------------------
+preprocessing:
+
+  # --- 4.1 Validation ------------------------------------------------------
+  validation:
+    enabled: true
+    check_dtypes: true
+    check_timestamp_monotonic: true
+    check_missing_fields: true
+    check_duplicate_timestamps: true
+    # Physical range check. Bounds are LEARNED from the baseline segment, not
+    # hard-coded, because true sensor ranges are process-specific.
+    check_ranges: true
+    range_source: baseline          # baseline | explicit | none
+    range_tolerance_sigma: 6.0      # ASSUMPTION [A3]
+    # A validation failure flags the sample; it does not silently delete it.
+    on_failure: flag                # flag | drop | raise
+
+  # --- 4.2 Missing values --------------------------------------------------
+  missing:
+    method: forward_fill            # forward_fill | interpolate | drop_window
+    # Forward-fill is causal by construction (uses only past values).
+    # Linear interpolation between t-1 and t+1 would use a FUTURE sample.
+    # LEAKAGE: interpolation is therefore restricted to a backward-only form.
+    interpolate_direction: backward_only
+    max_consecutive_fill: 5         # ASSUMPTION [A4]
+    # Never forward-fill across a block boundary (a multi-minute gap).
+    respect_block_boundaries: true
+
+  # --- 4.3 Outliers --------------------------------------------------------
+  outliers:
+    # CRITICAL SCIENTIFIC CONSTRAINT
+    # Genuine drift produces unusual observations. Deleting them would erase
+    # the very signal the experiment is designed to detect. Therefore the
+    # DEFAULT ACTION IS `flag` -- annotate, keep the value, and let the drift
+    # detector see it.
+    method: iqr                     # iqr | zscore | domain | none
+    action: flag                    # flag | clip | drop   <-- do not default to drop
+    iqr_multiplier: 3.0             # ASSUMPTION [A5]: 3.0, wider than the
+                                    # conventional 1.5, deliberately conservative
+    zscore_threshold: 4.0           # ASSUMPTION [A5]
+    # Statistics come from the baseline segment and are then FROZEN.
+    # LEAKAGE: recomputing them over post-drift data would let the definition
+    # of "outlier" absorb the drift.
+    statistics_source: baseline_frozen
+    apply_to: continuous_only       # discrete actuator states are never outliers
+
+  # --- 4.4 Filtering -------------------------------------------------------
+  filtering:
+    enabled: false                  # off by default: smoothing can attenuate
+                                    # the abrupt change that sudden drift creates
+    method: moving_average          # moving_average | median | none
+    window: 5
+    causal: true                    # backward-looking only; a centred filter
+                                    # would read future samples (LEAKAGE)
+
+  # --- 4.5 Normalization ---------------------------------------------------
+  normalization:
+    enabled: true
+    method: zscore                  # zscore | minmax | none
+
+    # =========================================================================
+    # THE MOST CONSEQUENTIAL PARAMETER IN PHASE 1 -- READ BEFORE CHANGING
+    #
+    # An online scaler that keeps adapting will ABSORB a mean-shift drift:
+    # after enough samples the normalized stream looks unchanged, the Edge
+    # model stops degrading, and ADWIN detects nothing. The drift becomes
+    # invisible not because it is absent but because preprocessing cancelled it.
+    #
+    #   frozen_after_baseline : fit on the baseline segment, then freeze.
+    #                           Causal (no future data), and preserves drift.
+    #                           This is the default and the safe choice.
+    #   running               : cumulative Welford. Causal but slowly absorbs
+    #                           drift. Use only as a deliberate ablation.
+    #   rolling               : fixed-window. Absorbs drift fastest.
+    #
+    # ASSUMPTION [A6]: frozen_after_baseline. To be justified by a sensitivity
+    # experiment comparing all three adaptation modes.
+    # =========================================================================
+    adaptation: frozen_after_baseline
+    rolling_window: 1000            # only used when adaptation: rolling
+    epsilon: 1.0e-8                 # zero-variance guard
+
+    # LEAKAGE (absolute): fitting on the full dataset is forbidden anywhere in
+    # this project. Kept as an explicit flag so the prohibition is visible and
+    # any violation is a config diff, not a hidden code change.
+    forbid_global_fit: true
+
+  # --- 4.6 Windowing -------------------------------------------------------
+  windowing:
+    # ASSUMPTION [A7]: 50/10 taken from the specification's worked example.
+    # At HAI's VERIFIED 1 Hz this is a 50 s window advancing every 10 s.
+    window_size: 50
+    step_size: 10
+
+    # A window overlapping a data gap is not a valid 50 s observation.
+    require_contiguous: true
+    min_valid_fraction: 0.9         # ASSUMPTION [A8]
+
+    # Recorded per window (specification requirement).
+    record: [window_id, start_time, end_time, features, target]
+
+    # Window label from its constituent samples.
+    # ASSUMPTION [A9]: `any_positive` -- a window containing any attack sample
+    # is an attack window. Appropriate for anomaly detection, where a short
+    # attack inside a window still matters. Alternative: `majority`, or `last`.
+    label_aggregation: any_positive
+
+    # Features extracted per window per continuous channel.
+    feature_extraction:
+      continuous: [mean, std, min, max, last, slope]
+      # For discrete actuators, distributional summaries are meaningless;
+      # mode and change-count are the interpretable choices.
+      discrete: [mode, n_changes]
+
+# -----------------------------------------------------------------------------
+# 5. DRIFT INJECTION
+# -----------------------------------------------------------------------------
+# generator.py applies CONTROLLED SYNTHETIC DRIFT TO REAL HAI OBSERVATIONS.
+# It never fabricates a replacement dataset. Drift is injected into the
+# inference stream (test1) only -- never into the baseline file.
+drift:
+  # none | sudden | gradual | recurring | stress
+  scenario: none
+
+  # --- Position ------------------------------------------------------------
+  # reference_stream fixes WHAT the fractions are fractions OF. Without this the
+  # numbers in the scenario overlays are ambiguous now that baseline and
+  # inference live in separate files.
+  #
+  # inference_stream : fraction of the file whose role is `inference_stream`
+  #                    (dataset.files.test1 -> 54000 rows). 0.50 => row 27000.
+  # post_baseline    : only meaningful when split.mode == leading_fraction,
+  #                    where baseline and inference are one file.
+  #
+  # Drift is NEVER injected into the baseline file. See ASSUMPTION [A18].
+  reference_stream: inference_stream   # inference_stream | post_baseline
+
+  # ASSUMPTION [A18]: drift is injected into the inference stream ONLY. The
+  # baseline file is left as recorded, so the deployed model is trained on
+  # genuine undisturbed HAI behaviour and every post-baseline degradation is
+  # attributable to the injected drift. The alternative -- perturbing the
+  # baseline too -- would make "drift" unmeasurable, because the reference
+  # distribution would move with it. Not a free choice, but recorded as an
+  # assumption because it fixes the experiment's meaning of "drift".
+  injection_target: inference_stream_only   # inference_stream_only
+  #
+  # start_fraction is preferred: it ports across datasets of different length.
+  # If start_index is non-null it takes precedence.
+  start_fraction: null
+  start_index: null
+  duration_fraction: null           # ramp/segment length, scenario-dependent
+  end_fraction: null                # null => persists to end of stream
+
+  # --- Magnitude -----------------------------------------------------------
+  # Expressed in units of each feature's OWN baseline standard deviation.
+  #
+  # Why sigma units and not absolute units: HAI channels differ by orders of
+  # magnitude (P1_FT02 ~ 2460, P1_PIT01 ~ 1.26, P1_PIT01_HH ~ 524320). An
+  # absolute offset of 5.0 is negligible for one and catastrophic for another.
+  # Sigma units make `magnitude` physically comparable across channels and
+  # across datasets.
+  #
+  # LEAKAGE: sigma is computed on the BASELINE FILE only (train1), never on the
+  # inference stream. Computing it over test1 would make the drift definition
+  # itself depend on the data being evaluated.
+  magnitude: 0.0                    # 0.0 => no drift (this control config)
+  magnitude_units: baseline_sigma   # baseline_sigma | absolute | relative
+
+  # --- Mechanism -----------------------------------------------------------
+  # offset      : x' = x + m*sigma           (calibration/bias drift)
+  # scale       : x' = x * (1 + m)           (gain degradation)
+  # noise       : x' = x + N(0, (m*sigma)^2) (transmitter degradation)
+  # correlation : rotate a feature pair      (changed process relationship)
+  #
+  # ASSUMPTION [A10]: `offset` is the default. It is the most physically
+  # interpretable (sensor bias), monotone in magnitude, and does not alter the
+  # label -- so it induces covariate shift without creating impossible data.
+  mechanism: offset
+
+  # --- Which channels are affected ----------------------------------------
+  affected_features:
+    # null => auto-select per the policy below
+    explicit: null
+    # auto policy: pick continuous sensors only, highest-variance first, so the
+    # drift lands on informative channels rather than near-constant ones.
+    selection: top_variance         # top_variance | random | all_continuous
+    n_features: 5                   # ASSUMPTION [A11]
+    # Discrete actuators are EXCLUDED from continuous mechanisms by default.
+    # Applying a fractional offset to a 1/2 state is physically impossible.
+    actuator_policy: exclude        # exclude | state_flip
+    state_flip_probability: 0.0     # only used when actuator_policy: state_flip
+
+  # --- Physical plausibility ----------------------------------------------
+  # Prevents impossible values (negative flow, negative tank level).
+  # TENSION, stated explicitly: clipping preserves plausibility but ATTENUATES
+  # the injected drift. The generator must therefore report realised vs
+  # requested magnitude so any attenuation is measured, not hidden.
+  clip_to_physical_range: true
+  physical_range_source: baseline   # baseline | explicit
+  physical_range_expansion: 1.5     # ASSUMPTION [A12]: allow 1.5x the baseline
+                                    # observed range before clipping
+  report_realised_magnitude: true
+
+  # --- Recurring-scenario controls (unused unless scenario: recurring) -----
+  recurring:
+    period_fraction: 0.15           # length of each A or B segment
+    n_cycles: 2                     # A -> B -> A -> B
+
+  # --- Stress-scenario controls (unused unless scenario: stress) -----------
+  stress:
+    progressive: true               # magnitude ramps monotonically to `magnitude`
+    steps: 5
+
+  # --- Labels --------------------------------------------------------------
+  # ASSUMPTION [A13]: labels are NEVER modified. Drift is injected in feature
+  # space only. Relabelling risks producing semantically impossible records
+  # (an "attack" label on physically normal process behaviour), which the
+  # specification forbids. True concept drift (a change in P(y|x)) is reserved
+  # for the `correlation` mechanism, which alters feature relationships without
+  # touching y.
+  modify_labels: false
+
+# -----------------------------------------------------------------------------
+# 6. GROUND TRUTH  (EVALUATION ONLY -- QUARANTINED)
+# -----------------------------------------------------------------------------
+# The generator knows the true drift onset because it created it. That
+# knowledge is required to measure detection delay, and is forbidden everywhere
+# else.
+ground_truth:
+  # Written to a sidecar file, never into the feature stream.
+  emit_sidecar: true
+  sidecar_path: data/synthetic/ground_truth.json
+  fields:
+    [scenario, drift_start_index, drift_end_index, affected_features,
+     drift_magnitude, realised_magnitude, mechanism, random_seed]
+
+  # Hard architectural boundary. Any component listed here that reads ground
+  # truth is a leakage defect.
+  forbidden_consumers:
+    [models, drift_detectors, severity, persistence, reliability, controller,
+     wds, lri, edge, cloud, hybrid, adaptation]
+  allowed_consumers: [metrics, plots, statistical_evaluation]
+
+# -----------------------------------------------------------------------------
+# 7. STREAMING
+# -----------------------------------------------------------------------------
+streaming:
+  shuffle: false                    # must remain false; ADWIN requires order
+  # null => stream the whole file. An integer truncates for fast smoke tests.
+  max_samples: null
+  emit: windows                     # windows | samples | both
+  # Simulated wall-clock pacing is a later-phase (SimPy) concern. Phase 1
+  # streams as fast as it can while preserving order.
+  realtime_factor: null
+
+# -----------------------------------------------------------------------------
+# 8. OUTPUT
+# -----------------------------------------------------------------------------
+output:
+  results_dir: results
+  plots_dir: plots
+  processed_dir: data/processed
+  synthetic_dir: data/synthetic
+  log_level: INFO                   # DEBUG | INFO | WARNING | ERROR
+  # Persist the fully-resolved config (after _extends merging) beside the
+  # results so any run can be reproduced exactly.
+  save_resolved_config: true
+
+# -----------------------------------------------------------------------------
+# 9. RESERVED FOR LATER PHASES
+# -----------------------------------------------------------------------------
+# These sections are intentionally EMPTY. Several of their values (WDS weights
+# w1..w5, drift-severity formula, persistent-drift threshold, LRI latency
+# budget) are explicitly not yet scientifically fixed. Inventing numbers now
+# would bury arbitrary choices in a config file and make them look settled.
+# Each is added in the phase that implements and justifies it.
+reserved_for_later_phases:
+  phase_2_models: "src/models/ -- edge/cloud hyperparameters, cost metadata"
+  phase_3_drift_detection: "src/drift/ -- ADWIN delta, severity formula"
+  phase_4_reliability: "src/reliability/ -- reliability inputs and weighting"
+  phase_5_system: "src/network/, src/resources/ -- latency, bandwidth, CPU, LRI budget"
+  phase_6_decision: "src/resources/wds.py -- w1..w5, argmin controller"
+  phase_7_adaptation: "src/adaptation/ -- persistence threshold, retrain criteria"
+  phase_8_baselines: "adaptation/baselines/ -- edge_only, cloud_only, hecif"

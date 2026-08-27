@@ -1,0 +1,22 @@
+{
+  "scenario": "sudden",
+  "drift_start_index": 2500,
+  "drift_end_index": 5000,
+  "affected_features": [
+    "P3_LCV01D",
+    "P3_LCP01D",
+    "P3_LIT01",
+    "P3_FIT01",
+    "P4_ST_GOV"
+  ],
+  "drift_magnitude": 2.0,
+  "realised_magnitude": {
+    "P3_LCV01D": 1.614499805240259,
+    "P3_LCP01D": 1.6133404576189827,
+    "P3_LIT01": 1.6955852536798344,
+    "P3_FIT01": 1.8536736255572823,
+    "P4_ST_GOV": 1.9825939634538956
+  },
+  "mechanism": "offset",
+  "random_seed": 42
+}

@@ -1,0 +1,541 @@
+{
+ "_schema": "Phase 1 raw-data provenance and dataset-decision record. Evaluation/documentation only; never read by src/ code. Configuration lives in config/*.yaml, not here.",
+ "_last_updated": "2026-08-26",
+ "_revision": 4,
+ "_revision_note": "Revision 4 (Phase 1 / Step 4): two findings added from verify_step4.py, both measured on the real hai-train1 baseline and hai-test1 inference stream. Behaviour was NOT changed for either; both are surfaced for a decision and are self-reporting in every preprocessing run. Revision 3 recorded the Step 3 findings and remains valid.",
+ "ACTIVE_DATASET_DECISION": {
+  "decided_on": "2026-08-25",
+  "decided_by": "user",
+  "resolution": "HAI (HIL-based Augmented ICS) is the primary real industrial dataset. Strategy: HAI + controlled synthetic drift, i.e. controlled drift injected into real HAI observations.",
+  "dataset": "HAI 22.04 (HIL-based Augmented ICS Security Dataset), National Security Research Institute, Republic of Korea",
+  "supersedes": "The SWaT decision recorded in `superseded_swat_record`.",
+  "status": "FILES_PRESENT_AND_VERIFIED",
+  "blocking_open_question": {
+   "id": "TASK_UNRESOLVED",
+   "config_key": "dataset.task",
+   "current_value": "unresolved",
+   "why_blocking": "HAI ships no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` is resolved, src/data/loader.py cannot be written.",
+   "options": [
+    {
+     "value": "forecasting_regression",
+     "target": "next-step value of one or more continuous process channels",
+     "error_stream_for_adwin": "|y - y_hat|",
+     "consequence": "Primary metric changes from post-drift Macro-F1 to a post-drift regression error (e.g. RMSE/MAE). Deviates from the specification's stated primary metric.",
+     "leakage_note": "Must exclude the target's own future values and, for actuator targets, its command/feedback sibling. See `finding_command_feedback_pairs`."
+    },
+    {
+     "value": "state_classification",
+     "target": "a discrete process/actuator state derived from HAI's own columns",
+     "error_stream_for_adwin": "0 if correct, 1 if incorrect",
+     "consequence": "Preserves post-drift Macro-F1 as the primary metric.",
+     "risk": "This is the failure mode that disqualified SWaT: PLC-controlled actuator states can be trivially recoverable from sensors, collapsing accuracy headroom and forcing R_edge ~= R_cloud, which kills the reliability axis of the WDS. MUST be probed empirically before adoption, exactly as SWaT was probed.",
+     "leakage_note": "Requires exclude_target_sibling: true."
+    },
+    {
+     "value": "labels_from_hai_labels",
+     "target": "official HAI attack labels",
+     "error_stream_for_adwin": "0 if correct, 1 if incorrect",
+     "consequence": "Preserves post-drift Macro-F1 and gives a genuine anomaly-detection task.",
+     "requires": "An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). Not present in data/raw/. Config key `dataset.label_file` is reserved for it and is currently null.",
+     "status": "REQUIRES_ADDITIONAL_FILE"
+    }
+   ],
+   "integrity_rule_applied": "No label was fabricated. dataset.label_column is null and dataset.task is 'unresolved' rather than being guessed."
+  }
+ },
+ "supplied_files": [
+  {
+   "file": "hai-train1.txt",
+   "role": "baseline_train",
+   "config_key": "dataset.files.train1",
+   "provenance": "User-supplied HAI process-value file, copied verbatim from Downloads.",
+   "copied_from": "C:\\Users\\msabi\\Downloads\\hai-train1.txt",
+   "sha256": "53007b0ba604fbf338e7ac2e08cd81d874b5d1388f3aecb213ddcba5bf2bec4a",
+   "size_bytes": 162418984,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 280800,
+   "columns": 87,
+   "time_range": [
+    "2022-08-04 18:00:01",
+    "2022-08-08 00:00:00"
+   ],
+   "duration_h": 78.0
+  },
+  {
+   "file": "hai-train2.txt",
+   "role": "baseline_validation",
+   "config_key": "dataset.files.train2",
+   "provenance": "User-supplied HAI process-value file, copied verbatim from Downloads.",
+   "copied_from": "C:\\Users\\msabi\\Downloads\\hai-train2.txt",
+   "sha256": "0e520e82bf78a661ab19ce4967f3c766bd809820f457a9c90c365102d4534c56",
+   "size_bytes": 169121615,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 291600,
+   "columns": 87,
+   "time_range": [
+    "2022-08-13 07:00:01",
+    "2022-08-16 16:00:00"
+   ],
+   "duration_h": 81.0,
+   "usage_restriction": "NOT usable as baseline training data. It lies entirely in test1's future. See `finding_temporal_acausality`."
+  },
+  {
+   "file": "hai-test1.txt",
+   "role": "inference_stream",
+   "config_key": "dataset.files.test1",
+   "provenance": "User-supplied HAI process-value file, copied verbatim from Downloads.",
+   "copied_from": "C:\\Users\\msabi\\Downloads\\hai-test1.txt",
+   "sha256": "78c7f1d4de1f2ab9ccc2f8c719f80f831033543adb0c81d0d78f84f40838d4be",
+   "size_bytes": 31255559,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 54000,
+   "columns": 87,
+   "time_range": [
+    "2022-08-12 16:00:01",
+    "2022-08-13 07:00:00"
+   ],
+   "duration_h": 15.0,
+   "note": "This is the stream into which controlled synthetic drift is injected (drift.injection_target: inference_stream_only)."
+  }
+ ],
+ "verified_diagnostics": {
+  "_note": "Measured directly from the three raw files during the Step 2 transition. Facts, not assumptions. Where a value also appears in config/default.yaml, this file is the measurement record and the config is the operational source of truth.",
+  "format": "comma-separated values with a header row, despite the .txt extension",
+  "delimiter": ",",
+  "columns_total": 87,
+  "columns_identical_across_all_three_files": true,
+  "timestamp_column": "timestamp",
+  "timestamp_format": "%Y-%m-%d %H:%M:%S",
+  "rows_total": 626400,
+  "non_numeric_columns_besides_timestamp": [],
+  "missing_cells": {
+   "train1": 0,
+   "train2": 0,
+   "test1": 0
+  },
+  "duplicate_timestamps": {
+   "train1": 0,
+   "train2": 0,
+   "test1": 0
+  },
+  "timestamps_monotonic": {
+   "train1": true,
+   "train2": true,
+   "test1": true
+  },
+  "sampling_interval_s": 1,
+  "sampling_interval_gaps_gt_1s": {
+   "train1": 0,
+   "train2": 0,
+   "test1": 0
+  },
+  "max_gap_s": {
+   "train1": 1.0,
+   "train2": 1.0,
+   "test1": 1.0
+  },
+  "sampling_regularity_verdict": "Exactly 1 Hz with zero gaps in all three files. No resampling or gap-filling is required.",
+  "cardinality_profile": {
+   "_method": "unique-value count per column, threshold 10 (config: dataset.features.type_detection.discrete_max_cardinality)",
+   "train1": {
+    "binary": 6,
+    "discrete_le_10": 28,
+    "continuous_gt_10": 58
+   },
+   "train2": {
+    "binary": 6,
+    "discrete_le_10": 28,
+    "continuous_gt_10": 58
+   },
+   "test1": {
+    "binary": 3,
+    "discrete_le_10": 31,
+    "continuous_gt_10": 55
+   },
+   "note": "test1 shows more low-cardinality columns purely because it is 5x shorter and covers a narrower operating window. Type assignment must therefore be derived from the BASELINE file, not from test1, or drift injection would treat different channels as discrete in different scenarios."
+  },
+  "zero_variance_columns": {
+   "_note": "The config lists only the 20-column INTERSECTION as known_zero_variance_all_files. Columns constant in test1 but varying in train1 are NOT dropped, because dropping on a test-set property is leakage.",
+   "intersection_all_three_files_n": 20,
+   "intersection_all_three_files": [
+    "P1_PIT01_HH",
+    "P1_PP01AD",
+    "P1_PP01AR",
+    "P1_PP01BD",
+    "P1_PP01BR",
+    "P1_PP02D",
+    "P1_PP02R",
+    "P1_SOL01D",
+    "P1_SOL03D",
+    "P1_STSP",
+    "P2_Emerg",
+    "P2_OnOff",
+    "P2_RTR",
+    "P2_TripEx",
+    "P2_VTR01",
+    "P2_VTR02",
+    "P2_VTR03",
+    "P2_VTR04",
+    "P3_LH01",
+    "P3_LL01"
+   ],
+   "train1_n": 20,
+   "train2_n": 20,
+   "test1_n": 27,
+   "test1_only_additional": [
+    "P1_PP04SP",
+    "P2_ATSW_Lamp",
+    "P2_AutoGO",
+    "P2_MASW",
+    "P2_MASW_Lamp",
+    "P2_ManualGO",
+    "P2_ManualSD"
+   ],
+   "action": "Exclude via configuration (dataset.features.drop_zero_variance), never by hard-coded drop in source."
+  },
+  "process_group_prefixes": [
+   "P1_",
+   "P2_",
+   "P3_",
+   "P4_",
+   "x100"
+  ]
+ },
+ "finding_no_label_column": {
+  "severity": "BLOCKER",
+  "claim": "None of the three supplied HAI files contains an attack/anomaly label column.",
+  "evidence": [
+   "All 87 column names are identical across train1, train2 and test1 -- so test1 carries no extra indicator column that the training files lack.",
+   "A name scan for label-like identifiers (label, attack, anomaly, normal, class, target, y, flag, is_, ground) matched NO column.",
+   "A structural probe for 'constant in both training files but varying in test1' -- the signature an appended label column would have -- returned NO column."
+  ],
+  "consequence": "test1 contains no attack indicator to preserve as evaluation metadata. The specification's instruction 'if the test file contains an attack/anomaly indicator, preserve it' therefore has nothing to act on for these files.",
+  "action_taken": "dataset.label_column: null, dataset.label_map: null, dataset.positive_class: null, dataset.min_required_classes: null, dataset.task: unresolved. No label fabricated.",
+  "user_rule_honoured": "'If labels are absent from the training files, do not fabricate them.'"
+ },
+ "finding_temporal_acausality": {
+  "severity": "BLOCKER_RESOLVED_BY_CONFIG",
+  "claim": "Chronological order of the three files is train1 < test1 < train2. train2 lies entirely in test1's future.",
+  "evidence": {
+   "train1": "2022-08-04 18:00:01 -> 2022-08-08 00:00:00",
+   "test1": "2022-08-12 16:00:01 -> 2022-08-13 07:00:00",
+   "train2": "2022-08-13 07:00:01 -> 2022-08-16 16:00:00",
+   "boundary": "test1 ends 2022-08-13 07:00:00; train2 begins 2022-08-13 07:00:01 -- exactly one second later."
+  },
+  "consequence": "Training a baseline model on train1 + train2 and then streaming test1 through it would train on data recorded AFTER the inference stream. That is temporal leakage, regardless of whether the label is known.",
+  "action_taken": "dataset.baseline_source: train1_only (ASSUMPTION [A17]), dataset.allow_acausal_baseline: false, dataset.concatenate_files: false, split.mode: separate_file.",
+  "cost_of_the_fix": "The baseline is 280800 rows (78 h) instead of 572400 rows (159 h). Accepted: a smaller causal baseline is scientifically valid, a larger acausal one is not.",
+  "residual_note": "train2 remains available for legitimately acausal-free uses that do not inform the deployed model's parameters -- e.g. an independent held-out check reported separately. Any such use must be declared explicitly and must not feed baseline fitting, scaler statistics, or drift sigma.",
+  "user_rule_honoured": "'Never use future information or introduce data leakage.'"
+ },
+ "finding_command_feedback_pairs": {
+  "severity": "LEAKAGE_TRAP",
+  "claim": "HAI encodes six actuators as sibling command/feedback column pairs, suffix D = command (setpoint sent to the device) and Z = feedback (position reported back).",
+  "pairs": {
+   "P1_FCV01": [
+    "P1_FCV01D",
+    "P1_FCV01Z"
+   ],
+   "P1_FCV02": [
+    "P1_FCV02D",
+    "P1_FCV02Z"
+   ],
+   "P1_FCV03": [
+    "P1_FCV03D",
+    "P1_FCV03Z"
+   ],
+   "P1_LCV01": [
+    "P1_LCV01D",
+    "P1_LCV01Z"
+   ],
+   "P1_PCV01": [
+    "P1_PCV01D",
+    "P1_PCV01Z"
+   ],
+   "P1_PCV02": [
+    "P1_PCV02D",
+    "P1_PCV02Z"
+   ]
+  },
+  "consequence": "If one member of a pair is ever chosen as the prediction target while its sibling remains a feature, the task becomes near-trivial -- the feedback channel tracks the command channel by construction. This is the same headroom-collapse mechanism that disqualified SWaT actuator targets.",
+  "action_taken": "Recorded in config as dataset.features.command_feedback_pairs with dataset.features.exclude_target_sibling: true.",
+  "relevance": "Applies to the `state_classification` and `forecasting_regression` options of TASK_UNRESOLVED."
+ },
+ "finding_discrete_vs_continuous": {
+  "severity": "CORRECTNESS",
+  "claim": "Continuous offsets must not be applied to discrete actuator/state channels.",
+  "reason": "Adding m*sigma to a 0/1 or 1/2 state produces a physically impossible value and an out-of-vocabulary category, which would let the model detect 'drift' by an artefact rather than by distribution change.",
+  "action_taken": "drift.affected_features.actuator_policy: exclude by default in all Phase 1 scenarios; dataset.features.type_detection separates the two classes by cardinality with an explicit override list reserved.",
+  "user_rule_honoured": "'Do not blindly add continuous offsets to discrete actuator/state variables.'"
+ },
+ "finding_near_collinear_pairs": {
+  "severity": "OPEN_DECISION",
+  "discovered_in": "Phase 1 / Step 3 verification (verify_step3.py), measured on the train1 baseline only.",
+  "claim": "Four continuous channel pairs on the baseline exceed |Pearson r| > 0.999, and none of them appear in dataset.features.command_feedback_pairs, which covers only the six P1_ actuators.",
+  "measured_pairs": [
+   {
+    "a": "P1_FT02Z",
+    "b": "x1003_10_SETPOINT_OUT",
+    "pearson_r": 0.99969632
+   },
+   {
+    "a": "P1_TIT01",
+    "b": "P4_ST_TT01",
+    "pearson_r": 0.99967895
+   },
+   {
+    "a": "P4_ST_GOV",
+    "b": "P4_ST_PO",
+    "pearson_r": 0.99932143
+   },
+   {
+    "a": "P3_LCV01D",
+    "b": "P4_HT_PO",
+    "pearson_r": 0.99904248
+   }
+  ],
+  "method": "numpy.corrcoef over the 58 continuous baseline features (280,800 rows), pairs with |r| > 0.999 reported. Threshold chosen to surface only near-identity relationships.",
+  "consequence": "Three of these pairs contain a channel that drift.affected_features.selection: top_variance selects. Injecting drift into one member while its twin remains as recorded (a) produces a physically inconsistent plant state and (b) leaves the model an untouched proxy from which to reconstruct or compensate for the drift. This is the same hazard class as the D/Z command/feedback trap, but outside the configured pair list.",
+  "action_taken": "NONE -- behaviour deliberately unchanged. Reported rather than silently fixed, per the standing rule 'do not invent scientific assumptions silently'.",
+  "resolution_options": [
+   "Set drift.affected_features.explicit to a hand-chosen channel list, making the selection auditable instead of variance-driven.",
+   "Extend dataset.features.command_feedback_pairs (or add a sibling `correlated_groups` key) so that selecting one member drifts the whole group coherently.",
+   "Accept the current behaviour and state in the write-up that drift is injected into individual channels regardless of collinearity, with the compensation hazard acknowledged."
+  ],
+  "awaiting": "user decision"
+ },
+ "finding_continuous_command_channels": {
+  "severity": "OPEN_DECISION",
+  "discovered_in": "Phase 1 / Step 3 verification (verify_step3.py).",
+  "claim": "drift.affected_features.actuator_policy: exclude filters DISCRETE channels only, so continuous control-command channels are still eligible for drift injection. Two of the five channels selected for the single-drift scenarios are command/demand channels rather than sensors.",
+  "measured_channels": [
+   {
+    "name": "P3_LCV01D",
+    "n_unique": 1135,
+    "mean": 7304.8,
+    "sigma": 6834.6,
+    "min": -176.0,
+    "max": 19408.0,
+    "kind": "continuous level-control-valve demand"
+   },
+   {
+    "name": "P3_LCP01D",
+    "n_unique": 1731,
+    "mean": 5013.0,
+    "sigma": 5149.7,
+    "min": -16.0,
+    "max": 13824.0,
+    "kind": "continuous level-control-pump demand"
+   }
+  ],
+  "consequence": "Offsetting a setpoint means the controller is commanded incorrectly, which is a different physical phenomenon from sensor measurement bias. Both are defensible drift stories, but they are not the same story, and the write-up must say which one the experiment injects.",
+  "action_taken": "NONE -- behaviour deliberately unchanged. actuator_policy currently means 'exclude discrete states', not 'exclude actuators'.",
+  "resolution_options": [
+   "Keep as is and describe the injected drift as control-loop miscalibration plus sensor bias.",
+   "Restrict injection to sensor channels via drift.affected_features.explicit.",
+   "Extend actuator_policy with a value that excludes continuous command channels by naming convention (D suffix), noting that this would also exclude P1_*D and P4_*D channels."
+  ],
+  "awaiting": "user decision"
+ },
+ "finding_realised_magnitude_attenuation": {
+  "severity": "MEASURED_FACT",
+  "discovered_in": "Phase 1 / Step 3 verification (verify_step3.py), run on the real test1 inference stream.",
+  "claim": "Physical-plausibility clipping attenuates the requested drift magnitude. The realised shift is measured per channel after clipping and reported in the ground-truth sidecar; it is never assumed equal to the requested value.",
+  "measured": {
+   "sudden_drift": {
+    "requested_sigma": 2.0,
+    "realised_mean_sigma": 1.7951,
+    "ratio": 0.8976
+   },
+   "gradual_drift": {
+    "requested_mean_sigma": 1.6667,
+    "realised_mean_sigma": 1.5154,
+    "ratio": 0.9092
+   },
+   "stress_test": {
+    "requested_mean_sigma": 1.8,
+    "realised_mean_sigma": 1.4822,
+    "ratio": 0.8232
+   }
+  },
+  "note": "The gradual and stress requested figures are means over the drifted rows, not terminal magnitudes: gradual ramps 0 -> 2.0 sigma and stress steps 0.6 -> 3.0 sigma, so the mean is below the peak by construction.",
+  "action_taken": "generator.py measures realised magnitude per channel and records it in GroundTruth.realised_magnitude and schedule_summary.attenuation_ratio. Clipping applies only to rows where drift is active, and never moves a value past where the raw observation already was.",
+  "relevance": "ASSUMPTION [A14] (2.0 sigma) and [A15] (3.0 sigma) are not yet justified. Any pilot magnitude sweep must be calibrated against the REALISED magnitude, not the requested one."
+ },
+ "finding_degenerate_outlier_bounds": {
+  "severity": "OPEN_DECISION",
+  "discovered_in": "Phase 1 / Step 4 verification (verify_step4.py check 15a), run on hai-train1 (280,800 rows) as baseline and hai-test1 (54,000 rows).",
+  "claim": "The configured 3xIQR outlier rule degenerates on piecewise-constant ICS channels. When q1 == q3 the band has ZERO width, so every value not exactly equal to that constant is flagged. One such channel saturates the row-level outlier flag at 100%, making it carry no information.",
+  "measured": {
+   "degenerate_channels": {
+    "P1_PP04SP": {
+     "q1": 27.98469,
+     "q3": 27.98469,
+     "iqr": 0.0,
+     "baseline_std": 0.109721,
+     "baseline_n_unique": 17,
+     "test1_flagged_rows": 54000,
+     "test1_flag_rate": 1.0,
+     "test1_n_unique": 1,
+     "test1_constant_value": 27.48882
+    },
+    "P1_PCV02D": {
+     "q1": 12.0,
+     "q3": 12.0,
+     "iqr": 0.0,
+     "baseline_std": 0.037657,
+     "baseline_n_unique": 223,
+     "test1_flagged_rows": 172,
+     "test1_flag_rate": 0.0031852
+    }
+   },
+   "near_degenerate_channel": {
+    "P4_HT_FD": {
+     "iqr": 0.00036,
+     "band": [
+      -0.00144,
+      0.00108
+     ],
+     "test1_range": [
+      -0.02792,
+      0.02662
+     ],
+     "test1_flagged_rows": 7330,
+     "test1_flag_rate": 0.1357
+    }
+   },
+   "row_level_flag_rate_with_degenerate_channels": 1.0,
+   "row_level_flag_rate_excluding_them": 0.229778,
+   "channels_considered": 58,
+   "worst_per_channel_rate_after_exclusion": {
+    "P2_SCST": 0.0833148
+   }
+  },
+  "consequence": "Only the flag metadata is affected: `outliers.action` is `flag`, so no value is altered and no row is dropped (verify_step4 checks 5, 6, 7). The flags are carried in QualityReport and as per-window counts, and are deliberately NOT columns of the feature matrix, so the degeneracy cannot leak into any model. What it does destroy is the diagnostic value of the row-level outlier flag.",
+  "action_taken": "NONE -- behaviour deliberately unchanged. preprocessing._flag_outliers now DETECTS zero-width bands, names the channels in QualityReport.degenerate_bound_columns, and reports both the saturated and the excluding-degenerate flag rates. Reporting only; not a repair.",
+  "resolution_options": [
+   "1. Floor the band width at a multiple of the baseline sigma (e.g. max(3*IQR, k*sigma)), making the rule robust to piecewise-constant channels. Changes what 'outlier' means for every channel, so it needs an ASSUMPTION id.",
+   "2. Switch preprocessing.outliers.method to 'zscore' (threshold 4.0), which has no degeneracy as long as sigma > 0. All 58 continuous channels have sigma > 0 because loader.profile_baseline already drops the 20 zero-variance columns.",
+   "3. Exclude zero-IQR channels from outlier detection and record them as not-assessable, keeping the IQR rule unchanged for the other 56.",
+   "4. Accept as-is: the flag is metadata only and nothing in Phase 2 consumes it yet, so the cost of deferring is zero."
+  ],
+  "awaiting": "user decision"
+ },
+ "finding_pre_existing_regime_shift": {
+  "severity": "MEASURED_FACT",
+  "discovered_in": "Phase 1 / Step 4 verification (verify_step4.py check 15b), measured on the CLEAN hai-test1 stream with no drift injected.",
+  "claim": "hai-train1 and hai-test1 are different operating episodes, so the inference stream is already shifted relative to the baseline BEFORE any synthetic drift is injected. Expressed in frozen baseline sigmas, 8 of 66 features sit more than 1 sigma from their baseline mean and 1 exceeds 3 sigma.",
+  "measured": {
+   "units": "frozen baseline z-score, adaptation: frozen_after_baseline",
+   "n_features": 66,
+   "n_features_abs_z_gt_1": 8,
+   "n_features_abs_z_gt_3": 1,
+   "mean_abs_z": 0.4546,
+   "median_abs_z": 0.3064,
+   "top_shifted_features": [
+    {
+     "column": "P1_PP04SP",
+     "z_mean": -3.9605,
+     "within_test1_std": 1.78e-15,
+     "note": "constant within test1; zero-variance in the inference stream although not in the baseline, so the loader did not drop it"
+    },
+    {
+     "column": "P2_VIBTR04",
+     "z_mean": -1.7096
+    },
+    {
+     "column": "x1002_08_SETPOINT_OUT",
+     "z_mean": -1.2914
+    },
+    {
+     "column": "P1_PCV02Z",
+     "z_mean": -1.269
+    },
+    {
+     "column": "P1_FT03Z",
+     "z_mean": -1.2472
+    },
+    {
+     "column": "P1_FT03",
+     "z_mean": -1.1612
+    },
+    {
+     "column": "P4_HT_PS",
+     "z_mean": 1.1521
+    },
+    {
+     "column": "P2_VIBTR03",
+     "z_mean": 1.1438
+    }
+   ],
+   "clean_stream_post_minus_pre_shift_sigma": -0.0365
+  },
+  "consequence": "Two separable effects. (a) It does NOT confound the primary drift measurement: the offset is flat across the whole stream, so the post-minus-pre contrast is unaffected -- measured at -0.0365 sigma on the clean stream versus +1.7586 sigma on the drifted stream, and verify_step4 check 8 subtracts the clean figure explicitly. (b) It IS a real domain shift the deployed Edge model faces from row 0, so a drift detector may fire near stream start for reasons unrelated to the injected onset. Detection latency must therefore be measured relative to the injected onset with the detector allowed to settle on the pre-drift segment first, not from row 0.",
+  "action_taken": "NONE -- this is a property of the real HAI recordings, not a defect. Recorded so that Phase 2 detection-latency results are interpreted against it rather than surprised by it.",
+  "relevance": "Fixing this by re-centering test1 on its own statistics would be leakage (fitting on the inference stream) and would also cancel the injected drift. It must stay uncorrected."
+ },
+ "superseded_swat_record": {
+  "_status": "HISTORICAL -- retained as the audit trail for why the dataset changed. No longer governs any configuration.",
+  "file": {
+   "file": "attack.csv",
+   "status": "SUPERSEDED_BY_HAI",
+   "provenance": "User-supplied SWaT attack CSV, copied verbatim from Downloads.",
+   "dataset": "SWaT A1 & A2, December 2015 (iTrust, SUTD)",
+   "copied_from": "C:\\Users\\msabi\\Downloads\\attack.csv",
+   "sha256": "81977a6206ba954781df5481481ef1c39e94a405980f4f45b98e9c0a9cedadd2",
+   "size_bytes": 15162438,
+   "modified": false,
+   "rows": 54621,
+   "columns": 53,
+   "label_column": "Normal/Attack",
+   "label_distribution": {
+    "Attack": 54621,
+    "Normal": 0
+   },
+   "disqualifying_property": "Label-degenerate: a single class. No two-class target can be formed from it.",
+   "interpretation": "This is the attack-labelled SUBSET extracted from SWaT_Dataset_Attack_v0.csv, not the full file. Supporting evidence: 35 contiguous 1-second blocks separated by large gaps, consistent with normal-labelled rows having been removed between attack windows.",
+   "retention_question_for_user": "The intended data/raw/ contents are the three HAI files only. attack.csv is still present and is not referenced by any config. It will not be deleted without explicit instruction."
+  },
+  "rejected_alternative_target": {
+   "candidate": "Predict a discrete actuator state (e.g. P402, UV401, P101) from continuous sensors, to obtain a >=2-class target from the attack-only subset.",
+   "probe_method": "DecisionTreeClassifier(max_depth=6), chronological 70/30 split, continuous sensors only as features to avoid actuator-to-actuator leakage.",
+   "probe_results_test_macro_f1": {
+    "P402": 1.0,
+    "UV401": 0.9967,
+    "P101": 0.989,
+    "P302": 0.9921,
+    "MV101": 0.8946
+   },
+   "verdict": "REJECTED",
+   "reason": "SWaT actuators are PLC-controlled by deterministic threshold logic on the sensors, so the target is trivially recoverable (test Macro-F1 up to 1.0). This leaves no accuracy headroom, forces R_edge ~= R_cloud, kills the reliability axis of the WDS, and makes post-drift Macro-F1 unable to show degradation or recovery.",
+   "note": "MV101 retains headroom (0.8946) but its minority class is 0.17% of rows, making Macro-F1 numerically unstable.",
+   "carried_forward": "This probe is the precedent that any `state_classification` target proposed for HAI must survive before adoption."
+  },
+  "rejected_alternative_construction": {
+   "candidate": "Concatenate SWaT_Dataset_Normal_v1.csv onto the attack-only subset to synthesise a two-class stream.",
+   "verdict": "REJECTED",
+   "reason": "Concatenation creates one large artificial regime change at the join, confounding the controlled synthetic drift being injected: ADWIN detections could not be attributed to the injected drift rather than the seam.",
+   "carried_forward": "This is why dataset.concatenate_files is false for HAI as well."
+  },
+  "prior_decision": {
+   "decided_on": "2026-08-25",
+   "resolution": "Use the full SWaT attack file (SWaT_Dataset_Attack_v0.csv) as the Phase 1 primary dataset.",
+   "status_at_supersession": "AWAITING_FILE -- the file never arrived; the user supplied the three HAI files instead."
+  }
+ },
+ "integrity_rules": {
+  "no_fabricated_data": "No synthetic or substitute IoT dataset has been created at any point. data/synthetic/ is empty and is an OUTPUT directory for drift-injected derivatives of real HAI observations, never an input.",
+  "no_fabricated_labels": "No label column was invented for HAI. See finding_no_label_column.",
+  "raw_immutability": "Files in data/raw/ are never modified in place. SHA-256 verified byte-identical to the user's originals; the originals in Downloads were not modified. All transformations write to data/processed/ or data/synthetic/.",
+  "no_concatenation": "The three HAI files are kept separate (dataset.concatenate_files: false).",
+  "causality": "No baseline statistic, scaler, or drift sigma may be fitted on data recorded after the inference stream. Enforced by dataset.baseline_source: train1_only and dataset.allow_acausal_baseline: false.",
+  "ground_truth_isolation": "Injected-drift metadata (scenario, drift_start_index, drift_end_index, affected_features, drift_magnitude, random_seed) is evaluation-only and must never reach models, drift detectors, severity, persistence, reliability estimators, the controller, WDS, LRI, Edge, Cloud, Hybrid, or adaptation. Enforced by ground_truth.forbidden_consumers in config/default.yaml.",
+  "no_results_asserted": "No experiment has been run. No performance claim about the proposed method exists in this repository."
+ }
+}

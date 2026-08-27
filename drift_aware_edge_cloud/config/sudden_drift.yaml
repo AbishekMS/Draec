@@ -1,0 +1,51 @@
+# =============================================================================
+# sudden_drift.yaml — EXPERIMENT 2: SUDDEN DRIFT
+# =============================================================================
+# Inherits every value from default.yaml and overrides ONLY the drift block.
+# Preprocessing, windowing, seeds, and dataset handling are therefore provably
+# identical to the control condition -- which is what makes the comparison
+# valid. Do not duplicate base values here.
+#
+# Profile:   A -> A -> | -> B -> B     (instantaneous change, then persists)
+# Measures:  detection delay, post-drift Macro-F1, recovery time, decisions
+# =============================================================================
+
+_extends: default.yaml
+
+meta:
+  name: sudden_drift
+  description: >
+    Instantaneous distribution change at the midpoint of the inference stream,
+    persisting to the end. The abrupt onset gives an unambiguous ground-truth
+    drift index, which makes this the cleanest scenario for measuring ADWIN
+    detection delay.
+  phase: 1
+  config_version: 1
+
+drift:
+  scenario: sudden
+
+  # Fractions are of the INFERENCE STREAM (dataset.files.test1, 54000 rows), per
+  # `drift.reference_stream: inference_stream` in default.yaml. The baseline is a
+  # separate file (train1) and is never perturbed, so no baseline_fraction
+  # constraint applies here.
+  #
+  # Onset at the midpoint => row 27000 of test1 (approx. 2022-08-12 23:30).
+  # That leaves 27000 rows (7.5 h at 1 Hz) of post-drift stream, which is what
+  # the primary metric -- post-drift Macro-F1 -- is computed over.
+  start_fraction: 0.50
+  end_fraction: null                # persists to end of stream
+
+  # ASSUMPTION [A14]: 2.0 baseline sigma. Large enough that degradation should
+  # be detectable, small enough to stay physically plausible for a
+  # miscalibrated industrial sensor. This value MUST be calibrated by a pilot
+  # magnitude sweep before the main results -- it is not yet justified.
+  magnitude: 2.0
+  magnitude_units: baseline_sigma
+  mechanism: offset                 # step change in sensor bias
+
+  affected_features:
+    explicit: null
+    selection: top_variance
+    n_features: 5
+    actuator_policy: exclude        # continuous offset on a 1/2 state is invalid
