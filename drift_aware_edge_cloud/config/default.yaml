@@ -55,52 +55,159 @@ reproducibility:
 dataset:
   # mode: hai  -> real HAI files (the mode used for the main results)
   # mode: csv  -> any generic chronological delimited file, same schema contract
-  mode: hai
+  mode: csv
+
+  # --- RELEASE IDENTIFICATION (2026-08-27, verified from CONTENT) ----------
+  # The release is identified from what is inside the files, never from their
+  # names, extensions or sizes. Measured evidence, all four process-value files
+  # agreeing:
+  #   * 87 columns, byte-for-byte identical column set (hash d800fcbb4abe27bd)
+  #   * recorded 2022-08-04 .. 2022-08-19, exact 1 Hz, 0 gaps, 0 missing cells
+  #   * carries the x100* setpoint/assign/sum channels absent from earlier
+  #     releases
+  #   * ships attack labels in SEPARATE sidecar files (label-test1, label-test2)
+  #     rather than as a column, and ships exactly train1/train2/test1/test2
+  # This file set and layout is the HAI 23.05 release.
+  #
+  # MEASURED, and the reason no file was overwritten: the three files already
+  # present in data/raw/ before this migration are SHA-256 IDENTICAL to the
+  # newly downloaded ones. The earlier drop was already 23.05, merely
+  # incomplete -- it lacked test2 and both label files. Nothing was replaced;
+  # only the three genuinely-new files were added. Verified, not inferred from
+  # size.
+  hai_release: "23.05"
+  hai_release_identified_from: content   # content | filename -- never filename
 
   # --- Files and ROLES -----------------------------------------------------
   # DECISION (2026-08-25): HAI (HIL-based Augmented ICS) replaces SWaT as the
   # primary real industrial dataset. Roles are declared HERE, never hard-coded
-  # in Python. All three files share an identical 87-column schema (VERIFIED).
+  # in Python. All process-value files share an identical 87-column schema
+  # (VERIFIED).
   #
   # Raw files are byte-identical copies of the supplied originals and are never
   # modified in place. See data/raw/PROVENANCE.json for checksums.
+  #
+  # NOTE ON train3/train4: not part of this experiment. They are not declared
+  # here, so no code path can reach them.
   files:
     train1:
-      path: data/raw/hai-train1.txt
+      path: data/raw/wustl_iiot_2021.csv
       role: baseline_train
-      description: "Primary normal/baseline training stream."
-      rows: 280800                 # VERIFIED
-      time_range: ["2022-08-04 18:00:01", "2022-08-08 00:00:00"]
+      description: "Causal WUSTL flow-level training partition."
+      rows: 304166
+      selection_time_range: ["2019-08-19 09:46:03", "2019-08-19 11:29:48"]
+      time_range: ["2019-08-19 09:46:03", "2019-08-19 11:29:48"]
     train2:
-      path: data/raw/hai-train2.txt
+      path: data/raw/wustl_iiot_2021.csv
       role: baseline_validation
-      description: >
-        Additional normal/baseline stream and validation source. WARNING: lies
-        chronologically AFTER test1 (see causality_warning below).
-      rows: 291600                 # VERIFIED
-      time_range: ["2022-08-13 07:00:01", "2022-08-16 16:00:00"]
+      description: "Causal WUSTL validation partition; never used for fitting."
+      rows: 265685
+      selection_time_range: ["2019-08-19 11:29:49", "2019-08-19 13:07:36"]
+      time_range: ["2019-08-19 11:29:49", "2019-08-19 13:07:36"]
     test1:
-      path: data/raw/hai-test1.txt
+      path: data/raw/wustl_iiot_2021.csv
       role: inference_stream
+      description: "Causal WUSTL test/inference partition."
+      rows: 624613
+      selection_time_range: ["2019-08-19 13:07:37", "2019-08-19 16:48:11"]
+      time_range: ["2019-08-19 13:07:37", "2019-08-19 16:48:11"]
+
+  # --- OFFICIAL LABEL SIDECARS ---------------------------------------------
+  # Deliberately NOT entries in `dataset.files`. That section is the set of
+  # PROCESS-VALUE streams and loader.file_specs enforces its contract: exactly
+  # one file with role `inference_stream`, every other entry a baseline
+  # candidate. A label sidecar listed there could be selected as a baseline and
+  # normalised as if it were process data. A label file is a different kind of
+  # object, so it gets a different section.
+  #
+  # LEAKAGE: evaluation-only. See the OFFICIAL-LABEL QUARANTINE block below.
+  labels:
+    test1:
+      path: data/raw/label-test1.txt
+      aligns_with: test1
+      role: inference_labels
       description: >
-        Test/inference stream. Controlled synthetic drift is injected into THIS
-        stream only. Never concatenated with the training files.
+        Official HAI attack labels for test1. Evaluation ground truth only;
+        never an inference-time input. Separate from the controlled
+        synthetic-drift ground truth, which lives in data/synthetic/.
       rows: 54000                  # VERIFIED
       time_range: ["2022-08-12 16:00:01", "2022-08-13 07:00:00"]
+      label_column: label
+      classes: [0, 1]
+      # VERIFIED 2026-08-27 by audit_alignment.py, 6/6 checks:
+      #   row counts equal (54,000 == 54,000)
+      #   timestamps match ELEMENTWISE, row i to row i, all 54,000 rows
+      #   timestamp sets identical; label stamps unique -> joinable key
+      #   0 missing labels; 2 classes {0, 1}
+      #   class distribution 0: 51,019 (94.4796%), 1: 2,981 (5.5204%)
+      #   14 contiguous positive-class episodes (attack runs, not scatter)
+      class_distribution: {0: 51019, 1: 2981}
+      positive_rate: 0.055204
+      positive_episodes: 14
+      alignment: elementwise_verified
+
+  # --- RESERVED, NOT REACHABLE BY THE LOADER --------------------------------
+  # Declared for provenance and chronology only. These keys are NOT in
+  # `dataset.files` and NOT in `dataset.labels`, so no loader code path can
+  # select them. Making test2 unreachable structurally is stronger than an
+  # `active: false` flag that someone could flip without reading why.
+  #
+  # test2 is chronologically the LATEST stream, so it is causally after train1,
+  # test1 and train2 and would admit a larger legitimate baseline. It is still
+  # not the first experiment, for the measured reason recorded on label_test2
+  # and in PROVENANCE.json (finding_label_test2_minute_resolution).
+  reserved_files:
+    test2:
+      path: data/raw/hai-test2.txt
+      intended_role: second_inference_stream
+      rows: 230400                 # VERIFIED
+      time_range: ["2022-08-17 00:00:01", "2022-08-19 16:00:00"]
+      status: reserved
+    label_test2:
+      path: data/raw/label-test2.txt
+      intended_role: second_inference_labels
+      rows: 230400                 # VERIFIED
+      time_range: ["2022-08-17 00:00:00", "2022-08-19 16:00:00"]
+      label_column: label
+      classes: [0, 1]
+      class_distribution: {0: 221997, 1: 8403}
+      positive_rate: 0.036471
+      positive_episodes: 38
+      # MEASURED DEFECT 2026-08-27 by audit_alignment.py, only 3/6 checks pass:
+      #   row count matches test2 exactly (230,400); 0 missing labels;
+      #   2 classes {0, 1}.
+      #   BUT its timestamp column is MINUTE-resolution, textually formatted
+      #   '2022-08-17 0:00' rather than '2022-08-17 00:00:01'. Only 3,841
+      #   distinct stamps cover 230,400 rows, i.e. 226,559 duplicates, so the
+      #   stamp is not a joinable key against a 1 Hz stream. Elementwise
+      #   comparison disagrees on 226,560 of 230,400 rows, and the label file
+      #   starts at 00:00:00 while test2 starts at 00:00:01.
+      #   Positional (row-order) alignment is plausible but UNVERIFIABLE from
+      #   the timestamps, and assuming it would silently offset every label by
+      #   up to 60 s. Not repaired, not assumed. Reported and left unreachable.
+      alignment: not_verifiable_minute_resolution
+      status: reserved_blocked_by_finding
 
   # Files are kept SEPARATE. Concatenation would create an artificial regime
   # change at the seam and confound the injected drift.
   concatenate_files: false
 
   # --- CAUSALITY WARNING (VERIFIED, blocks a naive train1+train2 baseline) ---
-  # True chronological order is:  train1 < test1 < train2
-  #   train1 : 2022-08-04 18:00 -> 08-08 00:00
-  #   test1  : 2022-08-12 16:00 -> 08-13 07:00
-  #   train2 : 2022-08-13 07:00 -> 08-16 16:00   (starts 1 s after test1 ends)
+  # RE-MEASURED 2026-08-27 across the complete HAI 23.05 file set, including
+  # test2. The order is NOT the order implied by the filenames:
+  #
+  #   True chronological order is:  train1 < test1 < train2 < test2
+  #     train1 : 2022-08-04 18:00:01 -> 08-08 00:00:00   (78.0 h, 280,800 rows)
+  #     test1  : 2022-08-12 16:00:01 -> 08-13 07:00:00   (15.0 h,  54,000 rows)
+  #     train2 : 2022-08-13 07:00:01 -> 08-16 16:00:00   (81.0 h, 291,600 rows)
+  #     test2  : 2022-08-17 00:00:01 -> 08-19 16:00:00   (64.0 h, 230,400 rows)
   #
   # train2 lies ENTIRELY IN THE FUTURE relative to test1. Fitting the baseline
   # on train1+train2 and then inferring on test1 would use data unavailable at
   # inference time -- acausal, and a direct violation of the no-leakage rule.
+  # The naive "both training files are training data" reading is therefore
+  # wrong, and adding test2 to the audit did not change that: train1 remains
+  # the ONLY file causally prior to test1.
   #
   # baseline_source controls this and defaults to the causal choice:
   #   train1_only        : causal. train1 precedes test1. DEFAULT.
@@ -119,51 +226,99 @@ dataset:
   strip_value_whitespace: true
 
   # --- Time ----------------------------------------------------------------
-  timestamp_column: "timestamp"
+  timestamp_column: "StartTime"
   timestamp_format: "%Y-%m-%d %H:%M:%S"
   expected_sampling_interval_s: 1
 
   require_monotonic_timestamps: true
-  # VERIFIED: all three files are perfectly regular -- 0 gaps, 0 duplicate
-  # timestamps, 0 missing cells, exact 1 Hz. The gap machinery is retained for
-  # robustness but is not expected to trigger on HAI.
+  ordering:
+    sort_by_timestamp: true
+    tie_breaker_columns: [SrcAddr, DstAddr, Sport, Dport, Proto, sIpId, dIpId]
+  # VERIFIED: all four process-value streams (train1, train2, test1, test2) are
+  # perfectly regular -- 0 gaps, 0 duplicate timestamps, 0 missing cells, exact
+  # 1 Hz, monotonic. label-test1.txt matches that grid exactly. label-test2.txt
+  # does NOT: it is minute-resolution with 226,559 duplicate stamps, which is why
+  # test2 is reserved rather than active. The gap machinery is retained for
+  # robustness but is not expected to trigger on the active files.
   max_gap_s_before_new_block: 2
 
   # --- Target --------------------------------------------------------------
-  # VERIFIED FINDING: these HAI files contain NO label/attack/anomaly column.
-  # All 87 columns are identical across train1, train2 and test1 (timestamp +
-  # 86 process variables). A name scan found nothing, and no column is constant
-  # in both training files while varying in test1.
+  # HISTORY (preserved, superseded 2026-08-27):
+  #   The three process-value files supplied on 2026-08-25 contained NO
+  #   label/attack/anomaly column. All 87 columns were identical across
+  #   train1, train2 and test1 (timestamp + 86 process variables). No label was
+  #   fabricated; label_column was null and task was 'unresolved' pending a
+  #   user decision. That finding was correct about those files and remains on
+  #   record as finding_no_label_column.
   #
-  # No label has been fabricated. label_column is null and the task type is
-  # UNRESOLVED pending the decision recorded in PROVENANCE.json.
+  #   ASSUMPTION [A1-HAI]: SUPERSEDED. The SWaT binary label assumption does
+  #   not transfer to these files.
   #
-  # ASSUMPTION [A1-HAI]: SUPERSEDED. The SWaT binary Normal/Attack assumption
-  # does not transfer to these files.
+  # RESOLVED 2026-08-27, by the user, using the OFFICIAL label files that the
+  # HAI 23.05 release ships separately from the process values. The label is
+  # therefore READ FROM THE DISTRIBUTION, not derived, not inferred from
+  # process values, and not fabricated. Option taken:
+  # 'labels_from_hai_labels' -- the one option that preserves the
+  # specification's primary metric, post-drift Macro-F1.
+  #
+  # VERIFIED before resolving (audit_alignment.py, 6/6 on test1):
+  #   binary {0, 1}, 0 missing, 54,000 labels for 54,000 rows, timestamps equal
+  #   elementwise row-for-row, label stamps unique.
+  task: supervised_classification
   label_column: null
-  label_map: null
-  positive_class: null
-  min_required_classes: null
-
-  # task must be resolved before Phase 2 (models) can be implemented.
-  #   forecasting_regression : predict a continuous process variable from the
-  #                            others; loss = |y - yhat|. No labels needed.
-  #   state_classification   : predict a discrete actuator/state variable.
-  #                            Requires a genuine-headroom check first --
-  #                            deterministic PLC targets were what invalidated
-  #                            the SWaT actuator framing.
-  #   labels_from_hai_labels : use the official HAI label file, if supplied.
-  task: unresolved
-  target_column: null
-  # Optional official HAI label file, if it is provided later. Attack windows
-  # would be EVALUATION-ONLY ground truth, never an inference-time input.
+  # 0 = normal operation, 1 = attack. These are the file's own values, read from
+  # it, not a mapping we chose.
+  label_map: {0: normal, 1: attack}
+  positive_class: 1
+  min_required_classes: 2
+  # Official HAI label file for the ACTIVE inference stream (test1).
+  # EVALUATION-ONLY ground truth; never an inference-time input.
   label_file: null
+  # No column of the process-value files is the target: the target lives in a
+  # separate file. target_column stays null on purpose -- setting it would
+  # imply a process channel is being predicted.
+  target_column: Target
+
+  # --- OFFICIAL-LABEL QUARANTINE -------------------------------------------
+  # LEAKAGE: the official attack labels are evaluation metadata. Exposing them
+  # to anything that runs at inference time would turn anomaly detection into
+  # reading the answer key.
+  #
+  # These labels are kept STRICTLY SEPARATE from the controlled synthetic-drift
+  # ground truth (see section 6, `ground_truth`). Two different objects:
+  #   official HAI labels  -> what the plant actually did; from the release.
+  #   drift ground truth   -> what WE injected; scenario, onset, magnitude, seed.
+  # They must never be merged, and neither may reach a model or detector.
+  label_usage: training_and_evaluation
+  label_forbidden_consumers:
+    [models, drift_detectors, severity, persistence, reliability, controller,
+     wds, lri, edge, cloud, hybrid, adaptation, preprocessing]
+  label_allowed_consumers: [metrics, plots, statistical_evaluation]
+
+  # --- CONSEQUENCE OF RESOLVING THIS WAY (open, Phase 2 decision) ----------
+  # MEASURED: the HAI 23.05 release ships label files for the TEST streams
+  # only. There is no label file for train1 or train2, so the causal baseline
+  # (train1) carries NO labels.
+  #
+  # A supervised two-class classifier therefore cannot be fitted on train1 with
+  # official labels, and assigning label=0 to every training row would be
+  # FABRICATING LABELS -- forbidden. HAI's documented design intent is that the
+  # training files are attack-free normal operation, but that is the
+  # distribution's claim, not something measurable from files that ship no
+  # labels.
+  #
+  # ASSUMPTION [A18]: train1 is treated as unlabelled, NOT as all-normal.
+  # Whether the Edge/Cloud models are therefore one-class / reconstruction
+  # detectors scored against these labels, or something else, is a Phase 2
+  # model-design decision and is deliberately NOT taken here.
+  training_labels_available: true
+  training_labels_assumption: null
 
   # --- Feature selection ---------------------------------------------------
   features:
     # null = every column except timestamp/label/target, minus exclusions.
     include: null
-    exclude: []
+    exclude: [Traffic, StartTime, LastTime, RunTime, SrcAddr, DstAddr, Sport, Dport, sIpId, dIpId]
 
     # Zero-variance columns carry no information. Dropped by CONFIG, never by a
     # hard-coded drop in source.
@@ -175,10 +330,7 @@ dataset:
     # VERIFIED: 20 columns are zero-variance in ALL THREE files. Reference only
     # -- the loader must re-measure on the configured baseline rather than
     # trusting this list.
-    known_zero_variance_all_files:
-      [P1_PIT01_HH, P1_PP01AD, P1_PP01AR, P1_PP01BD, P1_PP01BR, P1_PP02D,
-       P1_PP02R, P1_SOL01D, P1_SOL03D, P1_STSP, P2_Emerg, P2_OnOff, P2_RTR,
-       P2_TripEx, P2_VTR01, P2_VTR02, P2_VTR03, P2_VTR04, P3_LH01, P3_LL01]
+    known_zero_variance_all_files: []
 
     # --- HAI-SPECIFIC LEAKAGE TRAP (VERIFIED) ------------------------------
     # HAI exposes command/feedback sibling pairs: <TAG>D is the commanded
@@ -187,7 +339,11 @@ dataset:
     # answer and produce a meaningless near-perfect score -- the same failure
     # that invalidated the SWaT actuator target.
     #
-    # Enforced only once a target is chosen (task: unresolved today).
+    # Enforced only once a PROCESS COLUMN is chosen as the target. Resolving the
+    # task to `labels_from_hai_labels` leaves target_column null -- the target
+    # lives in a separate label file -- so `exclude_target_sibling` currently has
+    # no target whose sibling it could exclude and is a no-op. The trap is kept
+    # armed because any later switch to a process-column target reactivates it.
     command_feedback_pairs:
       P1_FCV01: [P1_FCV01D, P1_FCV01Z]
       P1_FCV02: [P1_FCV02D, P1_FCV02Z]
@@ -253,7 +409,9 @@ preprocessing:
     check_dtypes: true
     check_timestamp_monotonic: true
     check_missing_fields: true
-    check_duplicate_timestamps: true
+    # WUSTL is a flow-level event stream: concurrent flows legitimately share
+    # StartTime. They are ordered deterministically, not treated as bad rows.
+    check_duplicate_timestamps: false
     # Physical range check. Bounds are LEARNED from the baseline segment, not
     # hard-coded, because true sensor ranges are process-specific.
     check_ranges: true
@@ -334,8 +492,8 @@ preprocessing:
 
   # --- 4.6 Windowing -------------------------------------------------------
   windowing:
-    # ASSUMPTION [A7]: 50/10 taken from the specification's worked example.
-    # At HAI's VERIFIED 1 Hz this is a 50 s window advancing every 10 s.
+    # WUSTL flow-level stream: these are COUNTS OF FLOW OBSERVATIONS, never
+    # seconds. Same-timestamp flows are retained as distinct observations.
     window_size: 50
     step_size: 10
 

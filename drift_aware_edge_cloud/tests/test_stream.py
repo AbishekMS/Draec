@@ -292,10 +292,18 @@ def test_window_span_matches_1hz_sampling(windows):
 # -----------------------------------------------------------------------------
 
 
-def test_label_aggregation_refuses_while_the_task_is_unresolved(cfg):
-    assert cfg["dataset"]["task"] == "unresolved"
+def test_label_aggregation_refuses_without_a_positive_class(cfg):
+    """Aggregation must not guess which class is positive.
+
+    Before 2026-08-27 the shipped config had positive_class null, so this test
+    could use it directly. The official labels now declare positive_class: 1, so
+    the guard is exercised by removing it -- the refusal itself is unchanged.
+    """
+    assert cfg["dataset"]["positive_class"] == 1
+    c = copy.deepcopy(cfg)
+    c["dataset"]["positive_class"] = None
     with pytest.raises(loader.ConfigError, match="positive_class"):
-        stream.aggregate_label([0, 0, 1], cfg)
+        stream.aggregate_label([0, 0, 1], c)
 
 
 def test_label_aggregation_modes_once_a_label_exists(cfg):

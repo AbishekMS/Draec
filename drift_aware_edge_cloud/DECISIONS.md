@@ -475,6 +475,283 @@ unaffected: `verify_step2` 10/10, `verify_step3` 13/13, `verify_step4` 15/15,
 
 ---
 
+## D-014 · 2026-08-27 · dataset · HAI 23.05 identified from content; three files added, none overwritten
+
+**Context.** Six official HAI files arrived in `data/raw/HAI_23.05_downloads/`. Three
+files with the same names were already in `data/raw/` and had every Phase 1
+measurement resting on them. The standing rules forbid identifying a release from a
+filename or a size, and forbid overwriting anything before the new files are
+verified.
+
+**Measured.** `audit_dataset.py` (root-level, version-agnostic, directories from
+argv, no filename written into it) read all nine files. SHA-256 proved the three
+files already present are **byte-identical** to the newly supplied ones:
+
+| file | sha256 (first 16) |
+|---|---|
+| `hai-train1.txt` | `53007b0ba604fbf3` |
+| `hai-train2.txt` | `0e520e82bf78a661` |
+| `hai-test1.txt` | `78c7f1d4de1f2ab9` |
+
+So the earlier drop was **already 23.05 and merely incomplete** — it lacked `test2`
+and both label sidecars. Nothing needed overwriting, and `cp -n` added exactly three
+genuinely new files. The pre-existing files' mtimes are unchanged.
+
+**Release identified from content**, not names: 87 columns with one byte-identical
+column set across all four process-value streams (hash `d800fcbb4abe27bd`); the
+`x100*` SETPOINT/ASSIGN/SUM channels that earlier releases lack; attack labels in
+**separate sidecar files** rather than as a column; exactly train1/train2/test1/test2
+as the released split; 2022-08-04 .. 2022-08-19, exact 1 Hz, 0 gaps, 0 missing cells.
+
+**Correction on the record.** Revisions 1–4 of `PROVENANCE.json` called this
+"HAI 22.04". That attribution was never measured — it was inferred when only three
+files were present. Corrected to 23.05 with the evidence above, and the wrong value
+kept in `dataset_version_history` rather than quietly replaced.
+
+**Why train3/train4 are absent from the config.** The user excluded them from the
+first experiment. They are not declared in any YAML, so no code path can reach
+them — absence is enforced structurally rather than by a comment.
+
+---
+
+## D-015 · 2026-08-27 · decision · Chronology re-measured with test2; `train1_only` independently confirmed
+
+**Context.** `D-003` set `dataset.baseline_source: train1_only` (ASSUMPTION [A17])
+because train2 lies in test1's future. Adding a fourth stream could have changed
+that picture, so it was re-measured rather than assumed to still hold.
+
+**Measured** (first/last parsed timestamp per file, `audit_dataset.py`):
+
+```
+train1 : 2022-08-04 18:00:01 -> 08-08 00:00:00   (78.0 h, 280,800 rows)
+test1  : 2022-08-12 16:00:01 -> 08-13 07:00:00   (15.0 h,  54,000 rows)
+train2 : 2022-08-13 07:00:01 -> 08-16 16:00:00   (81.0 h, 291,600 rows)
+test2  : 2022-08-17 00:00:01 -> 08-19 16:00:00   (64.0 h, 230,400 rows)
+```
+
+True order is **train1 < test1 < train2 < test2** — not the order the filenames
+imply. `train1` remains the only file recorded entirely before `test1`.
+
+**Decision.** No change. `baseline_source: train1_only` is **confirmed**, not
+revised, and the 78 h causal baseline stands against the 159 h acausal one.
+
+**Why this is worth an entry despite changing nothing.** A re-measurement that
+confirms a prior decision is evidence; skipping it because the answer was expected
+is how a stale assumption survives a dataset change. `test2` being the latest stream
+would have admitted a *larger* legitimate baseline — that is precisely the
+temptation this check was run against.
+
+---
+
+## D-016 · 2026-08-27 · decision · Target resolved to `labels_from_hai_labels` — by the user
+
+**Context.** `TASK_UNRESOLVED` had blocked Phase 2 since Step 2. Of the three
+options on record, `labels_from_hai_labels` was marked `REQUIRES_ADDITIONAL_FILE`.
+HAI 23.05 supplies that file, so the option stopped requiring an absent input. The
+choice was the user's, as `AGENT_CONTEXT.md` reserved it.
+
+**Why alignment had to be proven before adopting it.** Matching row counts and
+matching first/last timestamps do **not** establish alignment. A dropped second in
+one file and a duplicated second in the other cancel out in both summaries while
+shifting every label by one row. Row *i* of the labels must be shown to describe row
+*i* of the data, elementwise, or the evaluation measures noise. `audit_alignment.py`
+was written for exactly this and compares the full timestamp vectors position by
+position.
+
+**Measured on `hai-test1` ↔ `label-test1`, 6/6:** 54,000 labels for 54,000 rows;
+timestamps equal **elementwise** on all 54,000; timestamp sets identical; label
+stamps unique (a joinable key); 0 missing; 2 classes; distribution 0: 51,019
+(94.4796%) / 1: 2,981 (5.5204%); **14 contiguous positive-class episodes**, i.e.
+attack runs rather than scattered positives.
+
+**Consequence for the primary metric.** Post-drift **Macro-F1 is preserved**, as the
+specification requires. The 5.52% positive rate is also why Macro-F1 rather than
+accuracy: a majority-class predictor already scores 94.48% accuracy here.
+
+**Configuration.** `task: labels_from_hai_labels`, `label_column: label`,
+`positive_class: 1`, `label_file` naming the sidecar. `target_column` stays **null** —
+no process channel is the target. Second quarantine added alongside the drift
+ground-truth one: `label_usage: evaluation_only` with 13 forbidden consumers. The two
+are never merged; they are different objects — what the plant actually did, versus
+what we injected.
+
+---
+
+## D-017 · 2026-08-27 · finding · `label-test2.txt` is minute-resolution, so `test2` is reserved and unreachable
+
+**Measured** (`audit_alignment.py` on `hai-test2` ↔ `label-test2`, only **3/6**):
+
+* PASS — row count matches the stream exactly (230,400), 0 missing labels, 2 classes.
+* FAIL — label stamps are not unique: **3,841 distinct stamps for 230,400 rows**
+  (226,559 duplicates), because the timestamp column is minute-resolution, textually
+  `'2022-08-17 0:00'` rather than `'2022-08-17 00:00:01'`.
+* FAIL — timestamps disagree elementwise on **226,560 of 230,400** rows.
+* FAIL — the label file starts `00:00:00`; the stream starts `00:00:01`.
+
+**Why it was not repaired.** Positional alignment is *plausible* — the row count
+matches to the row, which would be a striking coincidence otherwise — but
+**unverifiable from the timestamps**. Assuming it would silently offset every label
+by up to 60 s, and a 60 s offset against 38 attack episodes in a 1 Hz stream would
+corrupt exactly the boundaries detection latency is measured at. Recorded as
+`finding_label_test2_minute_resolution`, `awaiting: user decision`.
+
+**Decision.** `hai-test2.txt` and `label-test2.txt` are declared under
+`dataset.reserved_files`, a section **no loader code path reads**. The first design
+used `active: false` inside `dataset.files`; that was replaced because a flag can be
+flipped by someone who never reads this entry, whereas an unreachable section cannot.
+The stream file itself is sound (exact 1 Hz, 0 gaps, 0 duplicates, 0 missing) — what
+blocks it is only its labels.
+
+**The cheap honest fix is named, not taken.** Verifying that each minute-stamped
+label block covers exactly 60 consecutive stream rows would upgrade positional
+alignment from plausible to proven. It is deliberately out of scope: `test2` is not
+the first experiment, and doing it here would widen a verification task into a data
+repair.
+
+---
+
+## D-018 · 2026-08-27 · finding · The causal baseline is unlabelled — ASSUMPTION [A18]
+
+**Measured.** HAI 23.05 ships label sidecars for the **test** streams only. There is
+no label file for `train1` or `train2`, so the one causally valid baseline carries no
+labels.
+
+**Why this is a real consequence and not a detail.** Resolving the target to official
+labels gives a two-class target on the *inference* stream while leaving the
+*training* stream unlabelled. Assigning `label = 0` to every training row would be
+**fabricating labels** — forbidden. HAI's documented intent is that the training
+files are attack-free normal operation, but that is the distribution's claim about
+its own data, not something measurable from files that ship no labels.
+
+**Recorded, not resolved.** `dataset.training_labels_available: false`,
+ASSUMPTION [A18]: *train1 is treated as unlabelled, NOT as all-normal.*
+`finding_training_labels_absent`, `awaiting: Phase 2 model-design decision`.
+
+**Why not decided now.** Whether the Edge/Cloud models are therefore one-class /
+reconstruction detectors, or supervised under an explicit attack-free assumption, is
+a **Phase 2 model-design** decision. Taking it inside a dataset-verification task
+would settle the study's model architecture as a side effect of loading files. The
+third option — carving a labelled development split out of `test1` — is rejected in
+advance as leakage, and is already forbidden by `allow_acausal_baseline: false` and
+`loader.profile_baseline`.
+
+---
+
+## D-019 · 2026-08-27 · decision · Label sidecars are declared outside `dataset.files`
+
+**Root cause of the failure that forced this.** The label sidecars and the reserved
+`test2` were first added as entries in `dataset.files` with new role strings.
+`verify_step3.py` then died at `loader.file_specs`:
+
+```
+ConfigError: unrecognised file role(s): ['inference_labels',
+             'reserved_inference_labels', 'reserved_second_inference_stream']
+```
+
+`dataset.files` is not a file list. `file_specs` enforces a contract on it: exactly
+one entry with role `inference_stream`, **every other entry a baseline candidate**.
+
+**Why the loader was not changed.** Widening `BASELINE_ROLES` to accept the new roles
+would have made the error disappear while leaving a label file sitting in the section
+the loader draws baseline training data from — one future edit away from normalising
+an answer key as if it were process values. The loader's contract was right; the
+config was wrong.
+
+**Decision.** Three sections with three meanings:
+
+* `dataset.files` — process-value streams only, unchanged, still 3 entries.
+* `dataset.labels` — official label sidecars, keyed by the stream each aligns with.
+* `dataset.reserved_files` — declared for provenance and chronology, unreachable.
+
+**Enforced, not just documented.** `verify_step2.py` check 4 now (a) re-counts all
+six declared files from disk, (b) **fails if any entry of `dataset.files` looks like
+a label file**, and (c) requires every active sidecar to name a declared stream and
+carry `alignment: elementwise_verified`. Check 8 additionally asserts
+`dataset.label_file` and `dataset.labels.<stream>.path` name the same file, because
+two declarations of one fact drift apart and the file the loader reads must be the
+file whose alignment was proven.
+
+**Lesson.** A role vocabulary is a type system. When a new kind of object arrives,
+the cost of widening the vocabulary is paid later and elsewhere, by whoever assumes
+the old invariant still holds.
+
+---
+
+## E-008 · 2026-08-27 · error+fix · Eight assertions whose premises the dataset made false
+
+**What happened.** After the migration, `verify_step2` fell to 9/10, `verify_step3`
+to 12/13, and `pytest` to 6 failed / 224 passed. Every failure was an assertion whose
+*premise* had become false, not a broken implementation:
+
+| assertion | premise that expired |
+|---|---|
+| `verify_step2` check 8 | "HAI has no label column; `label_column` must be null" |
+| `verify_step3` check 4 | `resolve_target` must raise |
+| `test_integrity.py::test_provenance_records_every_supplied_file` | three raw files |
+| `test_integrity.py::test_no_module_fabricates_a_label` | `task == 'unresolved'` |
+| `test_integrity.py::test_resolving_a_target_today_raises...` | must raise |
+| `test_loader.py::test_target_resolution_refuses_to_invent_a_label` | must raise |
+| `test_loader.py::...requires_a_label_file_that_was_not_supplied` | file not supplied |
+| `test_stream.py::...refuses_while_the_task_is_unresolved` | `positive_class is None` |
+
+**Why none of them was deleted or loosened.** "Do not weaken a test to make it pass"
+is the rule, and a test whose premise expired is the most tempting thing in a
+codebase to delete — it is *genuinely* obsolete, which is exactly what makes removing
+it look free. Each was instead replaced by the stronger statement it had been
+standing in for:
+
+* *the label must be null* → **the label must be read from a file the distribution
+  shipped, with a recorded checksum, and must not be a column of the process-value
+  stream** (i.e. provably not derived);
+* *resolution must raise* → **resolution returns the sidecar's column and not a
+  process channel, AND still raises on an unresolved config, AND still raises on a
+  half-declared one** (`label_file` or `label_column` removed) — one assertion became
+  four;
+* *provenance records three files* → six, each with checksum, alignment status and
+  usage restriction.
+
+`test_provenance_records_every_supplied_file` needed no change at all: it was
+correctly demanding that `PROVENANCE.json` record the three new files, and the fix
+was to write the record.
+
+**One real (not premise) defect fixed.** `src/data/loader.py`'s `resolve_target`
+docstring and its `UnresolvedTaskError` message both stated as fact that HAI ships no
+labels and that `labels_from_hai_labels` "requires `dataset.label_file`, not
+currently supplied". Both were now false and would mislead the next reader. Reworded
+without naming any filename, because `verify_step2` check 4 scans `src/` for
+hard-coded HAI filenames including inside docstrings.
+
+**Measured after the fixes.** `verify_step2` 10/10, `verify_step3` 13/13,
+`verify_step4` 15/15, `verify_step5` 12/12, `pytest` 230 passed — the same counts as
+before the migration, against strictly more assertions.
+
+---
+
+## E-009 · 2026-08-27 · error+fix · `audit_dataset.py` was left on disk with a NUL byte in it
+
+**What happened.** The audit tool the previous session created could not run at all:
+
+```
+SyntaxError: source code cannot contain null bytes
+```
+
+**Root cause.** A literal `\x00` had been written as the separator in the
+column-hash expression at line 84 (`"\x00".join(cols)`) — found by byte scan at
+offset 3095, not visible in any editor view of the line.
+
+**Fix.** A targeted byte patch (`b'\x00'` → `b'|'`) rather than rewriting the file,
+so nothing else in a 250-line tool could change silently under cover of the repair.
+Confirmed with `py_compile`, then run.
+
+**Lesson.** The previous session's only artifact was a file that had never been
+executed. "A tool exists" and "a tool runs" are different claims, and the repository
+records the first while only execution establishes the second — which is why the
+state was re-derived by running everything rather than by reading what was left
+behind.
+
+---
+
 <!-- Append new entries ABOVE this line, in ascending id order.
      Never edit or delete an existing entry; supersede it with a new one. -->
+
 

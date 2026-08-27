@@ -75,58 +75,119 @@ replacement for HAI.
 
 ### Dataset currently supplied
 
-**HAI 22.04** (HIL-based Augmented ICS Security Dataset), three files copied verbatim into
+**HAI 23.05** (HIL-based Augmented ICS Security Dataset), six files copied verbatim into
 `data/raw/`, SHA-256 verified byte-identical to the user's originals. Provenance, checksums,
 and every measured diagnostic: `data/raw/PROVENANCE.json`.
 
+The release is identified **from file contents, never from names or sizes**: one byte-identical
+87-column set across all four process-value streams, the `x100*` setpoint/assign/sum channels
+absent from earlier releases, attack labels shipped in **separate sidecar files** rather than as
+a column, and exactly train1/train2/test1/test2 as the released split. Revisions 1–4 of
+`PROVENANCE.json` called this "22.04"; that attribution had never been measured and is corrected
+there rather than quietly replaced. `train3`/`train4` are excluded from the first experiment and
+are declared in no configuration, so no code path can reach them.
+
 Despite the `.txt` extension the files are **comma-separated with a header row**.
 
-| File | Role (`dataset.files.*`) | Rows | Time range | Duration |
+| File | Declared as | Rows | Time range | Duration |
 |---|---|---|---|---|
-| `hai-train1.txt` | `baseline_train` | 280,800 | 2022-08-04 18:00:01 → 2022-08-08 00:00:00 | 78 h |
-| `hai-test1.txt` | `inference_stream` | 54,000 | 2022-08-12 16:00:01 → 2022-08-13 07:00:00 | 15 h |
-| `hai-train2.txt` | `baseline_validation` | 291,600 | 2022-08-13 07:00:01 → 2022-08-16 16:00:00 | 81 h |
+| `hai-train1.txt` | `dataset.files` · `baseline_train` | 280,800 | 2022-08-04 18:00:01 → 2022-08-08 00:00:00 | 78 h |
+| `hai-test1.txt` | `dataset.files` · `inference_stream` | 54,000 | 2022-08-12 16:00:01 → 2022-08-13 07:00:00 | 15 h |
+| `hai-train2.txt` | `dataset.files` · `baseline_validation` | 291,600 | 2022-08-13 07:00:01 → 2022-08-16 16:00:00 | 81 h |
+| `label-test1.txt` | `dataset.labels` · `inference_labels` | 54,000 | 2022-08-12 16:00:01 → 2022-08-13 07:00:00 | 15 h |
+| `hai-test2.txt` | `dataset.reserved_files` — unreachable | 230,400 | 2022-08-17 00:00:01 → 2022-08-19 16:00:00 | 64 h |
+| `label-test2.txt` | `dataset.reserved_files` — unreachable | 230,400 | 2022-08-17 00:00:00 → 2022-08-19 16:00:00 | 64 h |
 
-| Property | Value (measured across all three files) |
+Three sections with three meanings, and the separation is enforced rather than documented:
+`dataset.files` holds **process-value streams only**, because `loader.file_specs()` treats every
+entry in it as either the one inference stream or a baseline candidate — a label sidecar listed
+there could be selected as training data and normalised as if it were plant data.
+`verify_step2.py` check 4 fails if any entry of `dataset.files` so much as looks like a label
+file, and requires every active sidecar to name a declared stream and carry
+`alignment: elementwise_verified`.
+
+| Property | Value (measured across the four process-value files) |
 |---|---|
-| Columns | 87, identical in all three files |
+| Columns | 87, byte-identical column set in all four files |
 | Timestamp column / format | `timestamp`, `%Y-%m-%d %H:%M:%S` |
 | Sampling | Exactly 1 Hz — **0 gaps**, max step 1.0 s |
 | Chronological | Monotonic, **0 duplicate timestamps** |
 | Missing cells | **0** |
 | Non-numeric columns besides timestamp | none |
-| Label column | **none — see blocker below** |
-| Zero-variance in all three files | 20 columns |
+| Label column | **none — the labels ship as separate sidecar files; see below** |
+| Zero-variance in all three configured files | 20 columns |
 | Cardinality profile (train1, threshold 10) | 58 continuous / 28 discrete (6 binary) |
 
 The files are **kept separate** and never concatenated (`dataset.concatenate_files: false`).
 
-> #### Blocker 1 — HAI ships no label column
-> None of the three files contains an attack/anomaly indicator. Three independent probes agree:
-> all 87 column names are identical across train1/train2/test1 (so test1 has no extra column);
-> a name scan for label-like identifiers matched nothing; and a structural probe for *"constant
-> in both training files but varying in test1"* — the signature an appended label would have —
-> returned nothing.
+> #### Resolved — the target, from the official HAI label sidecars
+> **This was the user's decision, not a model's.** The process-value files contain no
+> attack/anomaly column, and the original Step 2 finding stands on the record: all 87 column names
+> are identical across train1/train2/test1 (so test1 has no extra column); a name scan for
+> label-like identifiers matched nothing; and a structural probe for *"constant in both training
+> files but varying in test1"* — the signature an appended label would have — returned nothing.
+> Per the standing rule *"if labels are absent, do not fabricate them"*, no label was invented and
+> `dataset.task` stayed `unresolved` for as long as that was the honest state.
 >
-> Per the standing rule *"if labels are absent, do not fabricate them"*, **no label was invented**.
-> `dataset.label_column: null` and `dataset.task: unresolved`. The specification's primary metric
-> is post-drift **Macro-F1**, which needs a classification target.
+> HAI 23.05 ships the labels **in a separate file per test stream**. `dataset.task` is now
+> `labels_from_hai_labels`, `label_column: label`, `positive_class: 1`, `target_column: null` —
+> no process channel is the target. **Post-drift Macro-F1 is preserved as the primary metric.**
 >
-> **What this actually blocks, measured rather than assumed:** Steps 3 and 4 both shipped without
-> it. `loader.resolve_target()` raises `UnresolvedTaskError` instead of guessing, and everything
-> that does not need a target — file loading, validation, causality enforcement, baseline
-> profiling, drift injection, windowed streaming, causal preprocessing and windowed feature
-> extraction (a 5,396 × 364 matrix) — is implemented and verified against the real files
-> (`verify_step3.py` 13/13, `verify_step4.py` 15/15). What remains blocked is **window label
-> aggregation**
-> (`stream.aggregate_label` raises for the same reason) and **all of Phase 2**, since no model can
-> be trained without a target. The three options — `forecasting_regression`,
-> `state_classification`, `labels_from_hai_labels` (needs the separate HAI label file, not
-> supplied) — are recorded with their consequences in `PROVENANCE.json`
-> (`ACTIVE_DATASET_DECISION.blocking_open_question`).
+> **Adopted only after alignment was proven, not assumed.** Matching row counts and matching
+> first/last timestamps do not establish alignment: a dropped second in one file and a duplicated
+> second in the other cancel out in both summaries while shifting every label by one row.
+> `audit_alignment.py` compares the full timestamp vectors position by position, and passes 6/6 on
+> `hai-test1` ↔ `label-test1`: 54,000 labels for 54,000 rows, timestamps equal **elementwise** on
+> all 54,000, identical timestamp sets, unique label stamps, 0 missing, 2 classes. Class
+> distribution **0: 51,019 (94.4796 %) / 1: 2,981 (5.5204 %)** in **14 contiguous attack
+> episodes**. That 5.52 % positive rate is also why the metric is Macro-F1 and not accuracy — a
+> majority-class predictor already scores 94.48 %.
+>
+> **Quarantined.** `dataset.label_usage: evaluation_only`, with 13 forbidden consumers (models,
+> drift detectors, severity, persistence, reliability, controller, WDS, LRI, Edge, Cloud, Hybrid,
+> adaptation, preprocessing) and `label_allowed_consumers: [metrics, plots,
+> statistical_evaluation]`. Official HAI labels and controlled synthetic-drift ground truth are
+> **two different objects and are never merged**: one is what the plant did, the other is what we
+> injected.
+>
+> `resolve_target()` has not become lenient — it still raises for any config that names no label
+> source, and `verify_step3.py` check 4 now pins four statements where it previously pinned one.
+
+> #### Open finding — the causal baseline is unlabelled (`finding_training_labels_absent`)
+> HAI 23.05 ships label files for the **test** streams only. There is none for train1 or train2,
+> so the one causally valid baseline carries no labels. Assigning `label = 0` to every training
+> row would be fabricating labels; HAI's documented intent is that the training files are
+> attack-free normal operation, but that is the distribution's claim about its own data, not
+> something measurable from files that ship no labels.
+>
+> Recorded, not resolved: `dataset.training_labels_available: false`, ASSUMPTION [A18] —
+> *train1 is treated as unlabelled, NOT as all-normal.* Whether the Edge/Cloud models are
+> therefore one-class/reconstruction detectors or supervised under an explicit attack-free
+> assumption is a **Phase 2 model-design** decision and is left to the user. The third option —
+> carving a labelled development split out of test1 — is rejected in advance as leakage, and is
+> already refused by `allow_acausal_baseline: false` and `loader.profile_baseline`.
+
+> #### Open finding — `label-test2` is minute-resolution (`finding_label_test2_minute_resolution`)
+> `audit_alignment.py` passes only **3/6** on `hai-test2` ↔ `label-test2`. The row count matches
+> exactly (230,400) with 0 missing labels and 2 classes, but the label timestamps are
+> minute-resolution — textually `2022-08-17 0:00` — giving **3,841 distinct stamps for 230,400
+> rows** (226,559 duplicates) and **226,560 rows disagreeing elementwise**; the label file also
+> starts at `00:00:00` against the stream's `00:00:01`.
+>
+> Positional alignment is *plausible* — a row count matching to the row would be a striking
+> coincidence otherwise — but **unverifiable from the timestamps**. Assuming it would silently
+> offset every label by up to 60 s, and a 60 s offset against 38 attack episodes in a 1 Hz stream
+> would corrupt exactly the boundaries detection latency is measured at. So `hai-test2.txt` and
+> `label-test2.txt` are declared under `dataset.reserved_files`, a section **no loader code path
+> reads** — structurally unreachable rather than switched off by a flag someone could flip. The
+> stream file itself is sound (exact 1 Hz, 0 gaps, 0 duplicates, 0 missing); only its labels block
+> it. The honest cheap fix — verifying that each minute-stamped block covers exactly 60
+> consecutive stream rows — is named and deliberately **not** taken here: test2 is not the first
+> experiment.
 
 > #### Blocker 2 — train2 lies in test1's future
-> Chronological order is **train1 < test1 < train2**: test1 ends `2022-08-13 07:00:00` and train2
+> Measured chronological order is **train1 < test1 < train2 < test2** — not the order the
+> filenames imply. test1 ends `2022-08-13 07:00:00` and train2
 > begins `2022-08-13 07:00:01`, one second later. Training a baseline on train1 + train2 would fit
 > on data recorded *after* the inference stream — temporal leakage regardless of labels.
 >
@@ -134,6 +195,11 @@ The files are **kept separate** and never concatenated (`dataset.concatenate_fil
 > (ASSUMPTION [A17]), `dataset.allow_acausal_baseline: false`, `split.mode: separate_file`.
 > Cost: the baseline is 280,800 rows (78 h) instead of 572,400 (159 h). A smaller causal baseline
 > is scientifically valid; a larger acausal one is not.
+>
+> **Re-measured on 2026-08-27 with test2 present, and confirmed rather than assumed to still
+> hold.** train1 remains the only file recorded entirely before test1. test2 being the latest
+> stream would have admitted a *larger* legitimate baseline, which is precisely the temptation the
+> re-measurement was run against.
 
 > #### Leakage trap — command/feedback sibling pairs
 > HAI encodes six actuators as `D`/`Z` sibling pairs — `D` = command sent, `Z` = position fed
@@ -236,8 +302,10 @@ These apply to every phase and are treated as correctness requirements, not guid
 7. **Real industrial foundation.** HAI remains the real source dataset; "synthetic" means
    controlled transformation *of* HAI.
 8. **No fabricated results.** Metrics are reported only after experiments actually run.
-9. **No fabricated labels.** Absent a label column, the task stays `unresolved` rather than
-   being guessed.
+9. **No fabricated labels.** The label is **read from the distribution**, never manufactured or
+   derived from process values, and only after its alignment to the stream was proven
+   elementwise. Where labels are absent — as they are for the causal training baseline — they
+   stay absent (ASSUMPTION [A18]) rather than being assumed to be all-normal.
 
 ### Information available to the controller at time *t*
 
@@ -476,7 +544,9 @@ assumption, and where appropriate justified by a sensitivity experiment.
 
 | Parameter | Resolution route |
 |---|---|
-| **Exact target variable** | **BLOCKING Phase 2.** `dataset.task: unresolved` — HAI ships no label column. Three options with consequences in `PROVENANCE.json`. Step 3 shipped without it; `resolve_target()` raises. |
+| **Exact target variable** | **RESOLVED 2026-08-27 by the user**, and no longer blocking: `dataset.task: labels_from_hai_labels`, reading the official HAI 23.05 label sidecar whose alignment to the inference stream was proven elementwise (6/6). Macro-F1 preserved. The two options not taken keep their measured consequences in `PROVENANCE.json`. |
+| **Labels for the causal baseline** | **Open, Phase 2 model-design.** HAI labels the test streams only, so train1 is unlabelled (ASSUMPTION [A18]). One-class/reconstruction versus supervised-under-an-attack-free-assumption is left to the user; a labelled split carved out of test1 is rejected as leakage. |
+| **Second inference stream (test2)** | **Open.** `label-test2` is minute-resolution, so positional alignment is plausible but unverifiable; test2 is declared under `dataset.reserved_files` and is unreachable by the loader pending a decision. |
 | **Drifted-channel selection** | Open findings 1 and 2 in §3: `top_variance` picks two continuous control commands, and three of its picks have an r > 0.999 twin left undrifted. Behaviour unchanged pending decision. |
 | Drift magnitude realisation | Physical clipping attenuates the requested offset. Measured on test1: **89.8 %** of 2.0σ (sudden), **90.9 %** (gradual), **82.3 %** of 3.0σ (stress). Reported per run in the ground-truth sidecar, never assumed. |
 | **Outlier rule for constant channels** | Open finding 3 in §3: 3×IQR is degenerate for 2 of 58 channels, saturating the row-level flag at 100 % (22.98 % once excluded). Metadata only; behaviour unchanged pending decision. |
@@ -503,7 +573,8 @@ assumption, and where appropriate justified by a sensitivity experiment.
 
 ## 11. Dataset attribution
 
-**HAI (HIL-based Augmented ICS Security Dataset)**, release 22.04, is provided by the
+**HAI (HIL-based Augmented ICS Security Dataset)**, release **23.05** — identified from file
+contents, not from filenames — is provided by the
 **National Security Research Institute, Republic of Korea**. It is subject to the HAI licence
 terms and is not redistributed by this project.
 

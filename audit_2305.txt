@@ -1,0 +1,181 @@
+D:\tactics\drift_aware_edge_cloud\audit_dataset.py:91: UserWarning: Parsing dates in  %d/%m/%Y %I:%M:%S %p format when dayfirst=False (the default) was specified. Pass `dayfirst=True` or specify a format to silence this warning.
+  ts = pd.to_datetime(df[tcol], errors="coerce")
+==============================================================================
+data\raw  --  4 data file(s)
+==============================================================================
+  attack.csv
+    sha256      81977a6206ba954781df5481481ef1c39e94a405980f4f45b98e9c0a9cedadd2
+    size        15,162,438 bytes, comma-separated
+    shape       54,621 rows x 53 columns   (column-set hash f3851d3c39f59c3b)
+    columns[:8] [' Timestamp', 'FIT101', 'LIT101', ' MV101', 'P101', 'P102', ' AIT201', 'AIT202']
+    columns[-8:] ['PIT501', 'PIT502', 'PIT503', 'FIT601', 'P601', 'P602', 'P603', 'Normal/Attack']
+    missing     0 cells; 9 zero-variance columns
+    time column ' Timestamp' (0 unparseable)
+    range       2015-12-28 10:29:14 -> 2016-01-02 13:41:11   (123.1992 h)
+    sampling    mode 1.0s, min 1.0s, max 57700.0s, 34 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 27 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: ['Normal/Attack']
+      'Normal/Attack': 1 unique ['Attack'], missing=0
+          distribution {'Attack': 54621}
+
+  hai-test1.txt
+    sha256      78c7f1d4de1f2ab9ccc2f8c719f80f831033543adb0c81d0d78f84f40838d4be
+    size        31,255,559 bytes, comma-separated
+    shape       54,000 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 27 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-12 16:00:01 -> 2022-08-13 07:00:00   (14.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 31 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  hai-train1.txt
+    sha256      53007b0ba604fbf338e7ac2e08cd81d874b5d1388f3aecb213ddcba5bf2bec4a
+    size        162,418,984 bytes, comma-separated
+    shape       280,800 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 20 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-04 18:00:01 -> 2022-08-08 00:00:00   (77.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 28 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  hai-train2.txt
+    sha256      0e520e82bf78a661ab19ce4967f3c766bd809820f457a9c90c365102d4534c56
+    size        169,121,615 bytes, comma-separated
+    shape       291,600 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 20 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-13 07:00:01 -> 2022-08-16 16:00:00   (80.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 29 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+==============================================================================
+data\raw\HAI_23.05_downloads  --  6 data file(s)
+==============================================================================
+  hai-test1.txt
+    sha256      78c7f1d4de1f2ab9ccc2f8c719f80f831033543adb0c81d0d78f84f40838d4be
+    size        31,255,559 bytes, comma-separated
+    shape       54,000 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 27 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-12 16:00:01 -> 2022-08-13 07:00:00   (14.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 31 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  hai-test2.txt
+    sha256      b2b8dd295aefd87e39260fe43cb4c73ee86d6264b0ac4b0761e7efb0c2b545c3
+    size        132,946,575 bytes, comma-separated
+    shape       230,400 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 18 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-17 00:00:01 -> 2022-08-19 16:00:00   (63.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 29 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  hai-train1.txt
+    sha256      53007b0ba604fbf338e7ac2e08cd81d874b5d1388f3aecb213ddcba5bf2bec4a
+    size        162,418,984 bytes, comma-separated
+    shape       280,800 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 20 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-04 18:00:01 -> 2022-08-08 00:00:00   (77.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 28 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  hai-train2.txt
+    sha256      0e520e82bf78a661ab19ce4967f3c766bd809820f457a9c90c365102d4534c56
+    size        169,121,615 bytes, comma-separated
+    shape       291,600 rows x 87 columns   (column-set hash d800fcbb4abe27bd)
+    columns[:8] ['timestamp', 'P1_FCV01D', 'P1_FCV01Z', 'P1_FCV02D', 'P1_FCV02Z', 'P1_FCV03D', 'P1_FCV03Z', 'P1_FT01']
+    columns[-8:] ['P4_ST_TT01', 'x1001_05_SETPOINT_OUT', 'x1001_15_ASSIGN_OUT', 'x1002_07_SETPOINT_OUT', 'x1002_08_SETPOINT_OUT', 'x1003_10_SETPOINT_OUT', 'x1003_18_SETPOINT_OUT', 'x1003_24_SUM_OUT']
+    missing     0 cells; 20 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-13 07:00:01 -> 2022-08-16 16:00:00   (80.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 29 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: none
+
+  label-test1.txt
+    sha256      eaf69edb9c5834bc393afd7bf658b5e408d34fd7bfc3261f80516765fb818fbc
+    size        1,242,017 bytes, comma-separated
+    shape       54,000 rows x 2 columns   (column-set hash 120fe7780c1db3f9)
+    columns[:8] ['timestamp', 'label']
+    columns[-8:] ['timestamp', 'label']
+    missing     0 cells; 0 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-12 16:00:01 -> 2022-08-13 07:00:00   (14.9997 h)
+    sampling    mode 1.0s, min 1.0s, max 1.0s, 0 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=0
+    low-cardinality columns: 1 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: ['label']
+      'label': 2 unique ['0', '1'], missing=0
+          distribution {'0': 51019, '1': 2981}
+
+  label-test2.txt
+    sha256      8090c44981176e39b0f01a7126a80248ac0b93355c00f9db4d4e2f2106452b92
+    size        4,500,018 bytes, comma-separated
+    shape       230,400 rows x 2 columns   (column-set hash 120fe7780c1db3f9)
+    columns[:8] ['timestamp', 'label']
+    columns[-8:] ['timestamp', 'label']
+    missing     0 cells; 0 zero-variance columns
+    time column 'timestamp' (0 unparseable)
+    range       2022-08-17 00:00:00 -> 2022-08-19 16:00:00   (64.0 h)
+    sampling    mode 0.0s, min 0.0s, max 60.0s, 3840 gaps beyond mode
+    integrity   monotonic=True, duplicate timestamps=226559
+    low-cardinality columns: 1 (<=12 distinct values, excluding the time axis)
+    label candidates by NAME: ['label']
+      'label': 2 unique ['0', '1'], missing=0
+          distribution {'0': 221997, '1': 8403}
+
+==============================================================================
+CONTENT-IDENTICAL FILES (same SHA-256)
+==============================================================================
+  78c7f1d4de1f2ab9...  ['raw/hai-test1.txt', 'HAI_23.05_downloads/hai-test1.txt']
+  53007b0ba604fbf3...  ['raw/hai-train1.txt', 'HAI_23.05_downloads/hai-train1.txt']
+  0e520e82bf78a661...  ['raw/hai-train2.txt', 'HAI_23.05_downloads/hai-train2.txt']
+
+==============================================================================
+COLUMN-SET GROUPS (same schema)
+==============================================================================
+  120fe7780c1db3f9  ['HAI_23.05_downloads/label-test1.txt (2 cols)', 'HAI_23.05_downloads/label-test2.txt (2 cols)']
+  d800fcbb4abe27bd  ['raw/hai-test1.txt (87 cols)', 'raw/hai-train1.txt (87 cols)', 'raw/hai-train2.txt (87 cols)', 'HAI_23.05_downloads/hai-test1.txt (87 cols)', 'HAI_23.05_downloads/hai-test2.txt (87 cols)', 'HAI_23.05_downloads/hai-train1.txt (87 cols)', 'HAI_23.05_downloads/hai-train2.txt (87 cols)']
+  f3851d3c39f59c3b  ['raw/attack.csv (53 cols)']
+
+==============================================================================
+CHRONOLOGY (by first timestamp)
+==============================================================================
+  2015-12-28 10:29:14 -> 2016-01-02 13:41:11  raw/attack.csv
+  2022-08-04 18:00:01 -> 2022-08-08 00:00:00  raw/hai-train1.txt
+  2022-08-04 18:00:01 -> 2022-08-08 00:00:00  HAI_23.05_downloads/hai-train1.txt
+  2022-08-12 16:00:01 -> 2022-08-13 07:00:00  raw/hai-test1.txt
+  2022-08-12 16:00:01 -> 2022-08-13 07:00:00  HAI_23.05_downloads/hai-test1.txt
+  2022-08-12 16:00:01 -> 2022-08-13 07:00:00  HAI_23.05_downloads/label-test1.txt
+  2022-08-13 07:00:01 -> 2022-08-16 16:00:00  raw/hai-train2.txt
+  2022-08-13 07:00:01 -> 2022-08-16 16:00:00  HAI_23.05_downloads/hai-train2.txt
+  2022-08-17 00:00:00 -> 2022-08-19 16:00:00  HAI_23.05_downloads/label-test2.txt
+  2022-08-17 00:00:01 -> 2022-08-19 16:00:00  HAI_23.05_downloads/hai-test2.txt

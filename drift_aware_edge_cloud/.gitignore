@@ -1,2 +1,11 @@
+# Large HAI dataset files
 data/raw/hai-train1.txt
 data/raw/hai-train2.txt
+data/raw/hai-test2.txt
+data/raw/HAI_23.05_downloads/
+data/raw/wustl_iiot_2021.csv
+
+# Python cache
+.pytest_cache/git rm --cached drift_aware_edge_cloud/data/raw/hai-test2.txt
+__pycache__/
+*.pyc

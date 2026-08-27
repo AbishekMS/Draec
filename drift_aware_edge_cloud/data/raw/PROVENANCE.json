@@ -1,27 +1,43 @@
 {
  "_schema": "Phase 1 raw-data provenance and dataset-decision record. Evaluation/documentation only; never read by src/ code. Configuration lives in config/*.yaml, not here.",
- "_last_updated": "2026-08-26",
- "_revision": 4,
- "_revision_note": "Revision 4 (Phase 1 / Step 4): two findings added from verify_step4.py, both measured on the real hai-train1 baseline and hai-test1 inference stream. Behaviour was NOT changed for either; both are surfaced for a decision and are self-reporting in every preprocessing run. Revision 3 recorded the Step 3 findings and remains valid.",
+ "_last_updated": "2026-08-27",
+ "_revision": 5,
+ "_revision_note": "Revision 5 (HAI 23.05 completion): three files added to data/raw/ (hai-test2.txt, label-test1.txt, label-test2.txt), nothing overwritten or deleted. The three files already present were shown by SHA-256 to be byte-identical to the newly supplied ones, so the earlier drop was already 23.05 and merely incomplete. The release is now identified from CONTENT rather than from a filename or a size. TASK_UNRESOLVED is resolved by the user to 'labels_from_hai_labels' using the official label sidecars. Three findings added: finding_official_labels_shipped_separately, finding_label_test2_minute_resolution, finding_training_labels_absent. finding_no_label_column is retained verbatim and re-scoped, not deleted -- it was correct about the files it described. Revisions 1-4 remain valid.",
  "ACTIVE_DATASET_DECISION": {
   "decided_on": "2026-08-25",
   "decided_by": "user",
   "resolution": "HAI (HIL-based Augmented ICS) is the primary real industrial dataset. Strategy: HAI + controlled synthetic drift, i.e. controlled drift injected into real HAI observations.",
-  "dataset": "HAI 22.04 (HIL-based Augmented ICS Security Dataset), National Security Research Institute, Republic of Korea",
+  "dataset": "HAI 23.05 (HIL-based Augmented ICS Security Dataset), National Security Research Institute, Republic of Korea",
+  "dataset_version_corrected_on": "2026-08-27",
+  "dataset_version_identified_from": "content",
+  "dataset_version_history": "Revisions 1-4 recorded this as 'HAI 22.04'. That attribution was never measured -- it was inferred when only three process-value files were present. Corrected on 2026-08-27 from file CONTENT, never from filenames or sizes.",
+  "dataset_version_evidence": [
+   "87 columns, byte-for-byte identical column set across all four process-value streams (column-set hash d800fcbb4abe27bd).",
+   "Carries the x100* SETPOINT/ASSIGN/SUM channels, which earlier HAI releases do not.",
+   "Ships attack labels in SEPARATE sidecar files (label-test1.txt, label-test2.txt) rather than as a column of the process-value files.",
+   "Ships exactly train1/train2/test1/test2 as the released split.",
+   "Recorded 2022-08-04 .. 2022-08-19, exact 1 Hz, 0 gaps, 0 missing cells across all four process-value streams."
+  ],
   "supersedes": "The SWaT decision recorded in `superseded_swat_record`.",
   "status": "FILES_PRESENT_AND_VERIFIED",
   "blocking_open_question": {
    "id": "TASK_UNRESOLVED",
    "config_key": "dataset.task",
-   "current_value": "unresolved",
-   "why_blocking": "HAI ships no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` is resolved, src/data/loader.py cannot be written.",
+   "current_value": "labels_from_hai_labels",
+   "status": "RESOLVED",
+   "resolved_on": "2026-08-27",
+   "resolved_by": "user",
+   "value_before_resolution": "unresolved",
+   "why_blocking": "HAI's process-value files ship no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` was resolved, no target existed.",
+   "how_it_was_unblocked": "The HAI 23.05 release ships official attack labels in separate sidecar files. Once label-test1.txt was present and its alignment to hai-test1.txt was proven ELEMENTWISE (audit_alignment.py, 6/6), the `labels_from_hai_labels` option stopped requiring an absent file. See `finding_official_labels_shipped_separately`.",
    "options": [
     {
      "value": "forecasting_regression",
      "target": "next-step value of one or more continuous process channels",
      "error_stream_for_adwin": "|y - y_hat|",
      "consequence": "Primary metric changes from post-drift Macro-F1 to a post-drift regression error (e.g. RMSE/MAE). Deviates from the specification's stated primary metric.",
-     "leakage_note": "Must exclude the target's own future values and, for actuator targets, its command/feedback sibling. See `finding_command_feedback_pairs`."
+     "leakage_note": "Must exclude the target's own future values and, for actuator targets, its command/feedback sibling. See `finding_command_feedback_pairs`.",
+     "status": "NOT_TAKEN"
     },
     {
      "value": "state_classification",
@@ -29,18 +45,19 @@
      "error_stream_for_adwin": "0 if correct, 1 if incorrect",
      "consequence": "Preserves post-drift Macro-F1 as the primary metric.",
      "risk": "This is the failure mode that disqualified SWaT: PLC-controlled actuator states can be trivially recoverable from sensors, collapsing accuracy headroom and forcing R_edge ~= R_cloud, which kills the reliability axis of the WDS. MUST be probed empirically before adoption, exactly as SWaT was probed.",
-     "leakage_note": "Requires exclude_target_sibling: true."
+     "leakage_note": "Requires exclude_target_sibling: true.",
+     "status": "NOT_TAKEN -- no headroom probe was ever run, so this option was never eligible."
     },
     {
      "value": "labels_from_hai_labels",
      "target": "official HAI attack labels",
      "error_stream_for_adwin": "0 if correct, 1 if incorrect",
      "consequence": "Preserves post-drift Macro-F1 and gives a genuine anomaly-detection task.",
-     "requires": "An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). Not present in data/raw/. Config key `dataset.label_file` is reserved for it and is currently null.",
-     "status": "REQUIRES_ADDITIONAL_FILE"
+     "requires": "An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). SUPPLIED 2026-08-27 as label-test1.txt and label-test2.txt.",
+     "status": "TAKEN -- the only option that preserves the specification's primary metric without inventing a target."
     }
    ],
-   "integrity_rule_applied": "No label was fabricated. dataset.label_column is null and dataset.task is 'unresolved' rather than being guessed."
+   "integrity_rule_applied": "No label was fabricated at any point. While the label file was absent, dataset.label_column was null and dataset.task was 'unresolved' rather than guessed. The label now in use is READ FROM A FILE THE DISTRIBUTION SHIPPED, is not a column of the process-value files, and is quarantined as evaluation-only."
   }
  },
  "supplied_files": [
@@ -102,45 +119,153 @@
    ],
    "duration_h": 15.0,
    "note": "This is the stream into which controlled synthetic drift is injected (drift.injection_target: inference_stream_only)."
+  },
+  {
+   "file": "label-test1.txt",
+   "role": "inference_labels",
+   "config_key": "dataset.labels.test1",
+   "provenance": "Official HAI 23.05 attack-label sidecar, copied verbatim from the user's HAI_23.05_downloads folder. Added 2026-08-27; no existing file was overwritten.",
+   "copied_from": "data/raw/HAI_23.05_downloads/label-test1.txt",
+   "sha256": "eaf69edb9c5834bc393afd7bf658b5e408d34fd7bfc3261f80516765fb818fbc",
+   "size_bytes": 1242017,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 54000,
+   "columns": 2,
+   "time_range": [
+    "2022-08-12 16:00:01",
+    "2022-08-13 07:00:00"
+   ],
+   "duration_h": 15.0,
+   "aligns_with": "hai-test1.txt",
+   "alignment": "elementwise_verified",
+   "label_column": "label",
+   "label_distribution": {
+    "0": 51019,
+    "1": 2981
+   },
+   "positive_rate": 0.055204,
+   "positive_episodes": 14,
+   "usage_restriction": "EVALUATION ONLY. Never an inference-time input. See dataset.label_usage / dataset.label_forbidden_consumers in config/default.yaml, and keep strictly separate from the controlled synthetic-drift ground truth."
+  },
+  {
+   "file": "hai-test2.txt",
+   "role": "reserved_second_inference_stream",
+   "config_key": "dataset.reserved_files.test2",
+   "provenance": "Official HAI 23.05 process-value file, copied verbatim from the user's HAI_23.05_downloads folder. Added 2026-08-27; no existing file was overwritten.",
+   "copied_from": "data/raw/HAI_23.05_downloads/hai-test2.txt",
+   "sha256": "b2b8dd295aefd87e39260fe43cb4c73ee86d6264b0ac4b0761e7efb0c2b545c3",
+   "size_bytes": 132946575,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 230400,
+   "columns": 87,
+   "time_range": [
+    "2022-08-17 00:00:01",
+    "2022-08-19 16:00:00"
+   ],
+   "duration_h": 64.0,
+   "usage_restriction": "RESERVED, not used by the first experiment. The file itself is sound -- exact 1 Hz, 0 gaps, 0 duplicate timestamps, 0 missing cells. What blocks it is its label sidecar; see `finding_label_test2_minute_resolution`. Declared under dataset.reserved_files, which no loader code path reads."
+  },
+  {
+   "file": "label-test2.txt",
+   "role": "reserved_inference_labels",
+   "config_key": "dataset.reserved_files.label_test2",
+   "provenance": "Official HAI 23.05 attack-label sidecar, copied verbatim from the user's HAI_23.05_downloads folder. Added 2026-08-27; no existing file was overwritten.",
+   "copied_from": "data/raw/HAI_23.05_downloads/label-test2.txt",
+   "sha256": "8090c44981176e39b0f01a7126a80248ac0b93355c00f9db4d4e2f2106452b92",
+   "size_bytes": 4500018,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 230400,
+   "columns": 2,
+   "time_range": [
+    "2022-08-17 00:00:00",
+    "2022-08-19 16:00:00"
+   ],
+   "duration_h": 64.0,
+   "aligns_with": "hai-test2.txt",
+   "alignment": "not_verifiable_minute_resolution",
+   "label_column": "label",
+   "label_distribution": {
+    "0": 221997,
+    "1": 8403
+   },
+   "positive_rate": 0.036471,
+   "positive_episodes": 38,
+   "usage_restriction": "RESERVED AND BLOCKED. Its timestamp column is minute-resolution, so it cannot be joined to a 1 Hz stream on timestamp. See `finding_label_test2_minute_resolution`. Not repaired, not assumed aligned."
   }
  ],
  "verified_diagnostics": {
-  "_note": "Measured directly from the three raw files during the Step 2 transition. Facts, not assumptions. Where a value also appears in config/default.yaml, this file is the measurement record and the config is the operational source of truth.",
+  "_note": "Measured directly from the raw files. Facts, not assumptions. Where a value also appears in config/default.yaml, this file is the measurement record and the config is the operational source of truth. Revisions 1-4 measured the three files then present (train1, train2, test1); revision 5 adds test2 and the two label sidecars, measured by audit_dataset.py and audit_alignment.py on 2026-08-27.",
   "format": "comma-separated values with a header row, despite the .txt extension",
   "delimiter": ",",
   "columns_total": 87,
   "columns_identical_across_all_three_files": true,
+  "columns_identical_across_all_four_process_value_files": true,
+  "process_value_column_set_hash": "d800fcbb4abe27bd",
+  "label_sidecar_column_set_hash": "120fe7780c1db3f9",
+  "label_sidecar_columns": [
+   "timestamp",
+   "label"
+  ],
   "timestamp_column": "timestamp",
   "timestamp_format": "%Y-%m-%d %H:%M:%S",
   "rows_total": 626400,
+  "rows_total_all_four_process_value_files": 856800,
   "non_numeric_columns_besides_timestamp": [],
   "missing_cells": {
    "train1": 0,
    "train2": 0,
-   "test1": 0
+   "test1": 0,
+   "test2": 0,
+   "label_test1": 0,
+   "label_test2": 0
   },
   "duplicate_timestamps": {
    "train1": 0,
    "train2": 0,
-   "test1": 0
+   "test1": 0,
+   "test2": 0,
+   "label_test1": 0,
+   "label_test2": 226559
   },
   "timestamps_monotonic": {
    "train1": true,
    "train2": true,
-   "test1": true
+   "test1": true,
+   "test2": true,
+   "label_test1": true,
+   "label_test2": true
   },
   "sampling_interval_s": 1,
   "sampling_interval_gaps_gt_1s": {
    "train1": 0,
    "train2": 0,
-   "test1": 0
+   "test1": 0,
+   "test2": 0,
+   "label_test1": 0
   },
   "max_gap_s": {
    "train1": 1.0,
    "train2": 1.0,
-   "test1": 1.0
+   "test1": 1.0,
+   "test2": 1.0,
+   "label_test1": 1.0
   },
-  "sampling_regularity_verdict": "Exactly 1 Hz with zero gaps in all three files. No resampling or gap-filling is required.",
+  "sampling_regularity_verdict": "Exactly 1 Hz with zero gaps in all four process-value files and in label-test1. No resampling or gap-filling is required. label-test2 is the sole exception and is minute-resolution; see `finding_label_test2_minute_resolution`.",
+  "chronology_measured": {
+   "_method": "first and last parsed timestamp per file (audit_dataset.py). This ORDER, not the filenames, decides which file may be a baseline.",
+   "order": "train1 < test1 < train2 < test2",
+   "train1": "2022-08-04 18:00:01 -> 2022-08-08 00:00:00",
+   "test1": "2022-08-12 16:00:01 -> 2022-08-13 07:00:00",
+   "train2": "2022-08-13 07:00:01 -> 2022-08-16 16:00:00",
+   "test2": "2022-08-17 00:00:01 -> 2022-08-19 16:00:00",
+   "consequence": "Adding test2 to the audit did NOT change the causal picture for the first experiment: train1 remains the only file recorded entirely before test1. `finding_temporal_acausality` and dataset.baseline_source: train1_only are independently CONFIRMED, not revised."
+  },
   "cardinality_profile": {
    "_method": "unique-value count per column, threshold 10 (config: dataset.features.type_detection.discrete_max_cardinality)",
    "train1": {
@@ -208,16 +333,102 @@
   ]
  },
  "finding_no_label_column": {
-  "severity": "BLOCKER",
+  "severity": "RESOLVED_BY_OFFICIAL_LABEL_SIDECARS",
+  "severity_history": "Recorded as BLOCKER in revisions 1-4. Downgraded on 2026-08-27, not deleted: the claim below is still TRUE of the process-value files, and it is the reason the label had to come from elsewhere.",
+  "scope": "The HAI PROCESS-VALUE files (train1, train2, test1, test2). Re-verified on 2026-08-27 against all four, including the newly added test2: still no attack/anomaly label column in any of them.",
   "claim": "None of the three supplied HAI files contains an attack/anomaly label column.",
   "evidence": [
    "All 87 column names are identical across train1, train2 and test1 -- so test1 carries no extra indicator column that the training files lack.",
    "A name scan for label-like identifiers (label, attack, anomaly, normal, class, target, y, flag, is_, ground) matched NO column.",
-   "A structural probe for 'constant in both training files but varying in test1' -- the signature an appended label column would have -- returned NO column."
+   "A structural probe for 'constant in both training files but varying in test1' -- the signature an appended label column would have -- returned NO column.",
+   "RE-VERIFIED 2026-08-27 on all four process-value files: the same 87-column set (hash d800fcbb4abe27bd), no label-like column name in any of them."
   ],
   "consequence": "test1 contains no attack indicator to preserve as evaluation metadata. The specification's instruction 'if the test file contains an attack/anomaly indicator, preserve it' therefore has nothing to act on for these files.",
+  "consequence_update_2026_08_27": "The instruction now DOES have something to act on, but it is a separate FILE rather than a column. The labels are preserved as evaluation metadata exactly as the rule requires -- see `finding_official_labels_shipped_separately` -- and are withheld from the inference-time detector.",
   "action_taken": "dataset.label_column: null, dataset.label_map: null, dataset.positive_class: null, dataset.min_required_classes: null, dataset.task: unresolved. No label fabricated.",
+  "action_superseded_on": "2026-08-27",
+  "action_now": "dataset.task: labels_from_hai_labels, dataset.label_column: label, dataset.label_file: the official sidecar for the active inference stream. dataset.target_column stays NULL, because no process channel is the target. Still no label fabricated -- the label is read from a file the distribution shipped.",
   "user_rule_honoured": "'If labels are absent from the training files, do not fabricate them.'"
+ },
+ "finding_official_labels_shipped_separately": {
+  "severity": "RESOLUTION_RECORD",
+  "discovered_in": "HAI 23.05 completion (audit_dataset.py + audit_alignment.py), 2026-08-27.",
+  "claim": "HAI 23.05 ships official attack labels as a two-column sidecar file per TEST stream (timestamp, label), not as a column of the process-value files. For test1 the sidecar aligns with the stream exactly.",
+  "why_alignment_had_to_be_proven": "Matching row counts and matching first/last timestamps do NOT establish alignment. A dropped second in one file and a duplicated second in the other cancel out in both summaries while shifting every label by a row. Row i of the labels must be shown to describe row i of the data, elementwise, or the evaluation measures noise.",
+  "measured": {
+   "tool": "audit_alignment.py",
+   "checks_passed": "6/6",
+   "row_counts": "54,000 labels for 54,000 stream rows",
+   "timestamps_elementwise_equal": true,
+   "timestamp_sets_identical": true,
+   "label_stamps_unique": true,
+   "missing_labels": 0,
+   "classes": [
+    0,
+    1
+   ],
+   "class_distribution": {
+    "0": 51019,
+    "1": 2981
+   },
+   "positive_rate": 0.055204,
+   "positive_episodes": 14,
+   "episode_note": "14 contiguous positive-class runs, i.e. attack episodes rather than scattered single positives -- consistent with a real ICS attack campaign and usable for episode-level evaluation."
+  },
+  "consequence": "A genuine two-class target exists for the causally valid experiment, so the specification's primary metric (post-drift Macro-F1) is preserved without inventing anything. The 5.52% positive rate makes Macro-F1 the right choice over accuracy, which a majority-class predictor would already score at 94.48%.",
+  "action_taken": "dataset.task resolved to labels_from_hai_labels by the user. The sidecar is declared under dataset.labels -- deliberately NOT under dataset.files, because loader.file_specs treats that section as the process-value streams eligible to be baseline or inference, and a label file listed there could be selected as baseline training data.",
+  "quarantine": "dataset.label_usage: evaluation_only, with 13 forbidden consumers including models, drift_detectors, reliability, controller, wds, lri, edge, cloud, hybrid, adaptation and preprocessing. Kept strictly separate from the controlled synthetic-drift ground truth in data/synthetic/: two different objects -- what the plant actually did, versus what we injected.",
+  "user_rule_honoured": "'If the test file contains an attack/anomaly indicator, preserve it as evaluation metadata and do not expose it to the inference-time detector.'"
+ },
+ "finding_label_test2_minute_resolution": {
+  "severity": "OPEN_DECISION",
+  "discovered_in": "HAI 23.05 completion (audit_alignment.py), 2026-08-27.",
+  "claim": "label-test2.txt cannot be joined to hai-test2.txt on timestamp. Its timestamp column is MINUTE-resolution, textually formatted '2022-08-17 0:00' rather than '2022-08-17 00:00:01', so it is not a key against a 1 Hz stream.",
+  "measured": {
+   "tool": "audit_alignment.py",
+   "checks_passed": "3/6",
+   "passed": [
+    "row count matches the stream exactly (230,400 == 230,400)",
+    "0 missing labels",
+    "2 classes {0, 1}"
+   ],
+   "failed": [
+    "label stamps are NOT unique: 3,841 distinct stamps cover 230,400 rows, i.e. 226,559 duplicates",
+    "timestamps do NOT match elementwise: 226,560 of 230,400 rows disagree",
+    "timestamp sets are NOT identical: the label file starts 2022-08-17 00:00:00 while the stream starts 00:00:01"
+   ],
+   "class_distribution": {
+    "0": 221997,
+    "1": 8403
+   },
+   "positive_rate": 0.036471,
+   "positive_episodes": 38
+  },
+  "consequence": "Positional (row-order) alignment is PLAUSIBLE -- the row count matches to the row, which would be a remarkable coincidence otherwise -- but it is UNVERIFIABLE from the timestamps. Assuming it would silently offset every label by up to 60 s, and a 60 s offset against 38 attack episodes in a 1 Hz stream would corrupt exactly the boundaries that detection latency is measured at.",
+  "action_taken": "NONE -- not repaired, not assumed. hai-test2.txt and label-test2.txt are declared under dataset.reserved_files, which no loader code path reads, so test2 is unreachable structurally rather than behind a flag that could be flipped without reading this finding. Reported per the standing rule 'do not invent scientific assumptions silently'.",
+  "resolution_options": [
+   "1. Accept positional alignment explicitly under a new ASSUMPTION id, stating in the write-up that test2 labels are aligned by row order and that the timestamp column was discarded as unreliable.",
+   "2. Attempt a minute-block reconciliation: verify that each minute-stamped label block covers exactly 60 consecutive stream rows and that block boundaries agree, which would upgrade positional alignment from plausible to proven.",
+   "3. Use test1 only for the study and report test2 as available-but-unverifiable, which is the current state and costs nothing.",
+   "4. Contact the distribution / check the release notes for the intended join semantics."
+  ],
+  "note_on_option_2": "This is the honest way to make test2 usable and is cheap to run. It is deliberately NOT done here: it would widen the current task beyond the HAI 23.05 verification, and test2 is not the first experiment.",
+  "awaiting": "user decision"
+ },
+ "finding_training_labels_absent": {
+  "severity": "OPEN_DECISION",
+  "discovered_in": "HAI 23.05 completion, 2026-08-27, as a direct consequence of resolving the task to labels_from_hai_labels.",
+  "claim": "HAI 23.05 ships label sidecars for the TEST streams only. There is no label file for train1 or train2, so the causally valid baseline (train1) carries NO labels.",
+  "measured": "Six data files in the release: four process-value streams (train1, train2, test1, test2) and two label sidecars (label-test1, label-test2). No label file corresponds to either training stream.",
+  "consequence": "A supervised two-class classifier cannot be fitted on train1 with official labels. Assigning label=0 to every training row would be FABRICATING LABELS, which is forbidden. HAI's documented design intent is that the training files are attack-free normal operation, but that is the distribution's claim about its own data, not something measurable from files that ship no labels.",
+  "action_taken": "NONE beyond recording it. dataset.training_labels_available: false and ASSUMPTION [A18]: train1 is treated as UNLABELLED, not as all-normal.",
+  "resolution_options": [
+   "1. One-class / reconstruction detector fitted on train1 without labels and scored against the official test labels. Consistent with A18 and with the anomaly-detection framing, and it needs no label assumption.",
+   "2. Adopt the distribution's attack-free claim as an explicit ASSUMPTION, treat train1 as all-normal, and fit a supervised classifier. Honest only if declared as an assumption in the write-up, and it makes the training labels a claim rather than a measurement.",
+   "3. Carve a labelled development split out of test1 for supervised fitting. REJECTED IN ADVANCE as leakage: it fits on the inference stream, which dataset.allow_acausal_baseline: false and loader.profile_baseline already forbid."
+  ],
+  "why_not_decided_now": "This is a Phase 2 MODEL-DESIGN decision (Edge/Cloud model class), and Phase 2 is explicitly not to be started. Deciding it here would settle the study's model architecture inside a dataset-verification task.",
+  "awaiting": "Phase 2 model-design decision by the user"
  },
  "finding_temporal_acausality": {
   "severity": "BLOCKER_RESOLVED_BY_CONFIG",
@@ -530,12 +741,13 @@
   }
  },
  "integrity_rules": {
-  "no_fabricated_data": "No synthetic or substitute IoT dataset has been created at any point. data/synthetic/ is empty and is an OUTPUT directory for drift-injected derivatives of real HAI observations, never an input.",
-  "no_fabricated_labels": "No label column was invented for HAI. See finding_no_label_column.",
-  "raw_immutability": "Files in data/raw/ are never modified in place. SHA-256 verified byte-identical to the user's originals; the originals in Downloads were not modified. All transformations write to data/processed/ or data/synthetic/.",
-  "no_concatenation": "The three HAI files are kept separate (dataset.concatenate_files: false).",
-  "causality": "No baseline statistic, scaler, or drift sigma may be fitted on data recorded after the inference stream. Enforced by dataset.baseline_source: train1_only and dataset.allow_acausal_baseline: false.",
+  "no_fabricated_data": "No synthetic or substitute IoT dataset has been created at any point. data/synthetic/ is an OUTPUT directory for drift-injected derivatives of real HAI observations, never an input; it holds ground-truth sidecars written by the generator and no persisted feature stream.",
+  "no_fabricated_labels": "No label column was invented for HAI. While the release's label sidecars were absent, dataset.task stayed 'unresolved' rather than being guessed (see finding_no_label_column). The label now in use is read from label-test1.txt, a file the HAI 23.05 distribution shipped, whose checksum is recorded above and whose elementwise alignment to the inference stream was proven before it was adopted. It is not a column of the process-value files, so it cannot be a derived label. Training labels remain absent and were NOT invented: see finding_training_labels_absent and ASSUMPTION [A18].",
+  "raw_immutability": "Files in data/raw/ are never modified in place. SHA-256 verified byte-identical to the user's originals; the originals in Downloads were not modified. All transformations write to data/processed/ or data/synthetic/. The 2026-08-27 HAI 23.05 completion ADDED three files and overwrote none: the three files already present were first shown by SHA-256 to be byte-identical to the newly supplied ones, so there was nothing to overwrite.",
+  "no_concatenation": "The HAI files are kept separate (dataset.concatenate_files: false).",
+  "causality": "No baseline statistic, scaler, or drift sigma may be fitted on data recorded after the inference stream. Enforced by dataset.baseline_source: train1_only and dataset.allow_acausal_baseline: false. Re-verified on 2026-08-27 with test2 included in the audit: the measured order is train1 < test1 < train2 < test2, so train1 remains the only causally valid baseline for test1.",
   "ground_truth_isolation": "Injected-drift metadata (scenario, drift_start_index, drift_end_index, affected_features, drift_magnitude, random_seed) is evaluation-only and must never reach models, drift detectors, severity, persistence, reliability estimators, the controller, WDS, LRI, Edge, Cloud, Hybrid, or adaptation. Enforced by ground_truth.forbidden_consumers in config/default.yaml.",
+  "official_label_isolation": "The official HAI attack labels are a SECOND, independent quarantine with the same rule and its own key list (dataset.label_usage: evaluation_only, dataset.label_forbidden_consumers). The two must never be merged: the drift ground truth is what WE injected, the official labels are what the plant actually did. Exposing either to an inference-time component would turn detection into reading the answer key.",
   "no_results_asserted": "No experiment has been run. No performance claim about the proposed method exists in this repository."
  }
 }

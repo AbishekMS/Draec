@@ -79,17 +79,24 @@ not the specification. The specification is this list.
 1. **No fabricated data.** HAI is the real source. Never generate a replacement
    dataset or invent "normal" records. The raw files stay byte-identical; do not
    open anything under `data/raw/` for writing.
-2. **No fabricated labels.** HAI ships no label column. `dataset.task` is
-   `unresolved` and `loader.resolve_target()` raises rather than guessing. Do not
-   invent a target to unblock yourself. See §6.
+2. **No fabricated labels.** The HAI process-value files carry no label column.
+   HAI 23.05 ships official attack labels in a *separate sidecar file per test
+   stream*, and `dataset.task` is now `labels_from_hai_labels` — resolved on
+   2026-08-27 **by the user**, only after the sidecar's alignment was proven
+   elementwise. `loader.resolve_target()` still raises for any config that has
+   not named a label source, and the labels are quarantined
+   (`dataset.label_usage: evaluation_only`). **The causal baseline is
+   unlabelled** — HAI ships no labels for the training streams — so do not assign
+   `label = 0` to training rows, and do not carve a labelled split out of the
+   inference stream. See §6.
 3. **No fabricated results.** Do not state that an experiment succeeded before
    running it. Do not hard-code a metric value anywhere. Report failures and
    unfavourable results as readily as successes.
 4. **No future information, ever.** Fitting on all data, or on train + test, is
-   forbidden. This includes *file-level* leakage: HAI's chronology is
-   train1 < test1 < train2, so the second training file lies in the inference
-   stream's future and is excluded from the baseline
-   (`dataset.baseline_source: train1_only`).
+   forbidden. This includes *file-level* leakage: HAI's measured chronology is
+   **train1 < test1 < train2 < test2** — not the order the filenames imply — so
+   the second training file lies in the inference stream's future and is excluded
+   from the baseline (`dataset.baseline_source: train1_only`).
 5. **Ground truth is evaluation-only.** Scenario, drift start/end index, affected
    features, magnitude and seed must never reach a model, drift detector,
    severity or persistence module, reliability estimator, controller, WDS, LRI,
@@ -149,20 +156,46 @@ wrong. Fix the document.
 | `verify_step2.py` scans with a **plain regex** | prose in a docstring is **not** fine there — see prohibition 9 |
 | `data/synthetic/` is output-only | nothing may read it back as input; only ground-truth sidecars belong there |
 
-## 6. What is blocked, and why you must not unblock it yourself
+## 6. What is settled, what is still blocked, and why you must not unblock it
 
-**`dataset.task` is `unresolved` because HAI ships no label column.** This blocks
-all of Phase 2 (no model can be trained without a target) and window label
-aggregation. Three options are recorded in `PROVENANCE.json` →
-`ACTIVE_DATASET_DECISION.blocking_open_question`, each with its measured
-consequences: `forecasting_regression`, `state_classification`,
-`labels_from_hai_labels`.
+**The target is RESOLVED — and it was the user's decision, not a model's.**
+`dataset.task: labels_from_hai_labels`, `label_column: label`,
+`positive_class: 1`, reading the official sidecar named by `dataset.label_file`.
+Of the three options recorded in `PROVENANCE.json` →
+`ACTIVE_DATASET_DECISION.blocking_open_question`, `labels_from_hai_labels` was
+taken; `forecasting_regression` and `state_classification` were not. Each still
+carries its measured consequences there, because a superseded option is evidence
+about why the taken one was taken.
 
-Choosing between them changes the study's primary metric. **It is a scientific
-decision reserved to the user.** Do not pick one to make progress.
+It was adopted only after `audit_alignment.py` proved, 6/6, that row *i* of
+`label-test1` describes row *i* of `hai-test1` — equal timestamps on all 54,000
+rows, not merely equal counts and endpoints. **Post-drift Macro-F1 remains the
+primary metric**; a majority-class predictor already scores 94.48% accuracy at a
+5.52% positive rate, which is why accuracy is not the metric. Choosing a target
+changes the study's primary metric and so remains **a scientific decision
+reserved to the user** — if you ever find yourself picking one to make progress,
+stop.
 
-Three further findings are open by design and also await user decisions. They are
-listed with their measurements in `PROJECT_STATE.md`.
+**Two quarantines, never merged.** Official HAI labels say what the plant actually
+did; drift ground truth says what we injected. `dataset.label_usage:
+evaluation_only` with 13 forbidden consumers, and `ground_truth.forbidden_consumers`
+separately. Neither may reach a model, detector, reliability estimator or the
+controller.
+
+**Still open, awaiting user decisions — do not repair these:**
+
+| open finding | measured | what it blocks |
+|---|---|---|
+| `finding_training_labels_absent` | HAI 23.05 ships labels for **test streams only**, so the causal baseline `train1` is unlabelled — ASSUMPTION [A18] treats it as *unlabelled*, not as all-normal | whether the Edge/Cloud models are one-class/reconstruction detectors or supervised under an explicit attack-free assumption — a **Phase 2 model-design** decision |
+| `finding_label_test2_minute_resolution` | `label-test2` is minute-resolution: 3,841 distinct stamps for 230,400 rows, 226,560 rows disagreeing elementwise — alignment plausible but **unverifiable** | `test2` as a second inference stream; it is declared under `dataset.reserved_files`, a section no loader path reads |
+
+Three further findings (`finding_near_collinear_pairs`,
+`finding_continuous_command_channels`, `finding_degenerate_outlier_bounds`) are
+open by design and also await user decisions. All are listed with their
+measurements in `PROJECT_STATE.md`.
+
+**Phase 2 is unblocked** by the target resolution. It is still not started; see
+prohibition 10 and §4.
 
 ## 7. Before you write code, check
 

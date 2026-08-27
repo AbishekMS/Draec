@@ -362,6 +362,33 @@ def _read_frame(spec: FileSpec, ds: Mapping[str, Any], nrows: int | None) -> pd.
     return raw
 
 
+def _order_and_select(raw: pd.DataFrame, ds: Mapping[str, Any], key: str) -> pd.DataFrame:
+    """Apply the configured causal order and an inclusive timestamp range.
+
+    WUSTL is a flow event log: several flows can share a StartTime.  A stable
+    sort by configured, non-target header fields makes their within-timestamp
+    order deterministic without consulting a label or a later observation.
+    """
+    ts_col = str(ds["timestamp_column"])
+    order = ds.get("ordering") or {}
+    tie = list(order.get("tie_breaker_columns") or [])
+    forbidden = {str(ds.get("target_column") or ""), str(ds.get("label_column") or "")}
+    if any(c in forbidden for c in tie):
+        raise ConfigError("ordering.tie_breaker_columns must not contain a target or label")
+    missing = [c for c in [ts_col, *tie] if c not in raw.columns]
+    if missing:
+        raise SchemaError(f"{key}: ordering column(s) absent from the raw file: {missing}")
+    entry = _section(ds, "files").get(key) or {}
+    selected = entry.get("selection_time_range")
+    if selected:
+        ts = pd.to_datetime(raw[ts_col], format=str(ds["timestamp_format"]), errors="coerce")
+        lo, hi = pd.Timestamp(selected[0]), pd.Timestamp(selected[1])
+        raw = raw.loc[(ts >= lo) & (ts <= hi)].reset_index(drop=True)
+    if order.get("sort_by_timestamp", False):
+        raw = raw.sort_values([ts_col, *tie], kind="mergesort", ignore_index=True)
+    return raw
+
+
 def _parse_timestamps(raw: pd.DataFrame, ds: Mapping[str, Any], key: str) -> pd.Series:
     ts_col = str(ds["timestamp_column"])
     if ts_col not in raw.columns:
@@ -446,7 +473,13 @@ def load_file(
         raise ConfigError(f"unknown dataset.files key {key!r}; have {sorted(specs)}")
     spec = specs[key]
 
-    raw = _read_frame(spec, ds, max_rows)
+    # A flow-level time range must be selected after the complete file has been
+    # ordered; a file-order head would be an acausal, shuffled pseudo-split.
+    entry = _section(ds, "files").get(key) or {}
+    raw = _read_frame(spec, ds, None if entry.get("selection_time_range") else max_rows)
+    raw = _order_and_select(raw, ds, key)
+    if max_rows is not None:
+        raw = raw.iloc[:max_rows].reset_index(drop=True)
     ts = _parse_timestamps(raw, ds, key)
 
     findings: list[str] = []
@@ -507,6 +540,7 @@ def load_file(
     for opt in ("label_column", "target_column"):
         if ds.get(opt):
             reserved.add(str(ds[opt]))
+    reserved.update(str(c) for c in ((_section(ds, "features").get("exclude")) or []))
     frame = raw.drop(columns=[c for c in reserved if c in raw.columns])
     frame = frame.reset_index(drop=True)
 
@@ -795,24 +829,27 @@ def profile_baseline(
 def resolve_target(config: Mapping[str, Any], profile: BaselineProfile | None = None) -> str:
     """Return the prediction target column, or refuse.
 
-    HAI as supplied contains NO label column. Rather than inventing one, the
-    configuration records `dataset.task: unresolved`, and this function raises.
-    Guessing here would silently decide the study's primary metric.
+    The HAI process-value files contain no label column. The 23.05 release does
+    ship official attack labels, but in a SEPARATE sidecar file per test stream,
+    so a target exists only once the configuration names that file. Until then
+    `dataset.task` stays 'unresolved' and this function raises. Guessing here
+    would silently decide the study's primary metric.
     """
     ds = _section(config, "dataset")
     task = str(ds.get("task", "unresolved"))
 
     if task == "unresolved":
         raise UnresolvedTaskError(
-            "dataset.task is 'unresolved'. The supplied HAI files contain no "
-            "label/attack column (see data/raw/PROVENANCE.json -> "
+            "dataset.task is 'unresolved'. The HAI process-value files contain "
+            "no label/attack column (see data/raw/PROVENANCE.json -> "
             "finding_no_label_column), and no label has been fabricated. "
             "Resolve dataset.task to one of: 'forecasting_regression' (set "
             "target_column to a continuous channel), 'state_classification' "
             "(set target_column to a discrete channel -- must first survive a "
             "headroom probe, per the rejected SWaT actuator target), or "
-            "'labels_from_hai_labels' (requires dataset.label_file, not "
-            "currently supplied)."
+            "'labels_from_hai_labels' (set dataset.label_file to the official "
+            "label sidecar shipped alongside the inference stream, and "
+            "dataset.label_column to its label column)."
         )
 
     if task == "labels_from_hai_labels":
@@ -832,13 +869,19 @@ def resolve_target(config: Mapping[str, Any], profile: BaselineProfile | None = 
             )
         return str(label_column)
 
-    if task not in {"forecasting_regression", "state_classification"}:
+    if task not in {"forecasting_regression", "state_classification", "supervised_classification"}:
         raise ConfigError(f"unrecognised dataset.task {task!r}")
 
     target = ds.get("target_column")
     if not target:
         raise ConfigError(f"dataset.task is {task!r} but target_column is null")
     target = str(target)
+
+    # A dataset-supplied supervised target is deliberately removed from the
+    # feature frame before profiling. Its absence from the profile is therefore
+    # a leakage guard, not an error.
+    if task == "supervised_classification":
+        return target
 
     if profile is not None:
         if target not in profile.columns:

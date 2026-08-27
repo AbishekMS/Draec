@@ -195,7 +195,7 @@ def test_pre_drift_rows_are_the_recorded_hai_values(injected, infer):
 def test_unaffected_channels_are_bit_identical_everywhere(injected, infer):
     ds, gt = injected
     untouched = [c for c in ds.frame.columns if c not in set(gt.affected_features)]
-    assert len(untouched) > 60
+    assert len(untouched) == len(infer.frame.columns) - len(gt.affected_features)
     for c in untouched:
         assert ds.frame[c].equals(infer.frame[c]), c
 

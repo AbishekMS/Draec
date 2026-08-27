@@ -1,7 +1,7 @@
 # PROJECT_STATE — generated, do not edit by hand
 
-Generated `2026-08-26 15:53:32Z` by `state_report.py` from 68 code, config
-and provenance files. Surface fingerprint **`b75b19f5df2c6264`**.
+Generated `2026-08-27 10:17:18Z` by `state_report.py` from 68 code, config
+and provenance files. Surface fingerprint **`ff89c7a9f8750154`**.
 
 Regenerate after any change:
 
@@ -80,36 +80,41 @@ Configuration keys deliberately left unset rather than guessed:
 
 | Key | Value |
 |---|---|
-| `dataset.task` | `unresolved` |
 | `dataset.target_column` | `null` |
-| `dataset.label_column` | `null` |
-| `dataset.label_file` | `null` |
-| `dataset.positive_class` | `null` |
 
-### TASK_UNRESOLVED — `dataset.task`
+### TASK_UNRESOLVED — `dataset.task`  ·  **RESOLVED**
 
-HAI ships no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` is resolved, src/data/loader.py cannot be written.
+- resolved: **2026-08-27** by **user**
+- value: `dataset.task` was `unresolved`, now `labels_from_hai_labels`
+- how: The HAI 23.05 release ships official attack labels in separate sidecar files. Once label-test1.txt was present and its alignment to hai-test1.txt was proven ELEMENTWISE (audit_alignment.py, 6/6), the `labels_from_hai_labels` option stopped requiring an absent file. See `finding_official_labels_shipped_separately`.
+
+HAI's process-value files ship no label column (see `finding_no_label_column`). The primary metric in the specification is post-drift Macro-F1, which requires a classification target. Until `dataset.task` was resolved, no target existed.
 
 Options on record, with their consequences:
 
 - **`forecasting_regression`** — target: next-step value of one or more continuous process channels. Primary metric changes from post-drift Macro-F1 to a post-drift regression error (e.g. RMSE/MAE). Deviates from the specification's stated primary metric.
+  - _status_: NOT_TAKEN
   - _leakage_note_: Must exclude the target's own future values and, for actuator targets, its command/feedback sibling. See `finding_command_feedback_pairs`.
 - **`state_classification`** — target: a discrete process/actuator state derived from HAI's own columns. Preserves post-drift Macro-F1 as the primary metric.
   - _risk_: This is the failure mode that disqualified SWaT: PLC-controlled actuator states can be trivially recoverable from sensors, collapsing accuracy headroom and forcing R_edge ~= R_cloud, which kills the reliability axis of the WDS. MUST be probed empirically before adoption, exactly as SWaT was probed.
+  - _status_: NOT_TAKEN -- no headroom probe was ever run, so this option was never eligible.
   - _leakage_note_: Requires exclude_target_sibling: true.
 - **`labels_from_hai_labels`** — target: official HAI attack labels. Preserves post-drift Macro-F1 and gives a genuine anomaly-detection task.
-  - _requires_: An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). Not present in data/raw/. Config key `dataset.label_file` is reserved for it and is currently null.
-  - _status_: REQUIRES_ADDITIONAL_FILE
+  - _requires_: An additional label file from the HAI distribution (the HAI release ships attack labels separately from the process-value files). SUPPLIED 2026-08-27 as label-test1.txt and label-test2.txt.
+  - _status_: TAKEN -- the only option that preserves the specification's primary metric without inventing a target.
 
-_No label was fabricated. dataset.label_column is null and dataset.task is 'unresolved' rather than being guessed._
+_No label was fabricated at any point. While the label file was absent, dataset.label_column was null and dataset.task was 'unresolved' rather than guessed. The label now in use is READ FROM A FILE THE DISTRIBUTION SHIPPED, is not a column of the process-value files, and is quarantined as evaluation-only._
 
 ### Open findings
 
 Each was measured and deliberately **not** repaired, because repairing it would be a scientific choice.
 
-- **`finding_no_label_column`** (BLOCKER) — None of the three supplied HAI files contains an attack/anomaly label column.
-  - action taken: dataset.label_column: null, dataset.label_map: null, dataset.positive_class: null, dataset.min_required_classes: null, dataset.task: unresolved. No label fabricated.
-  - awaiting: the blocking question above
+- **`finding_label_test2_minute_resolution`** (OPEN_DECISION) — label-test2.txt cannot be joined to hai-test2.txt on timestamp. Its timestamp column is MINUTE-resolution, textually formatted '2022-08-17 0:00' rather than '2022-08-17 00:00:01', so it is not a key against a 1 Hz stream.
+  - action taken: NONE -- not repaired, not assumed. hai-test2.txt and label-test2.txt are declared under dataset.reserved_files, which no loader code path reads, so test2 is unreachable structurally rather than behind a flag that could be flipped without reading this finding. Reported per the standing rule 'do not invent scientific assumptions silently'.
+  - awaiting: user decision
+- **`finding_training_labels_absent`** (OPEN_DECISION) — HAI 23.05 ships label sidecars for the TEST streams only. There is no label file for train1 or train2, so the causally valid baseline (train1) carries NO labels.
+  - action taken: NONE beyond recording it. dataset.training_labels_available: false and ASSUMPTION [A18]: train1 is treated as UNLABELLED, not as all-normal.
+  - awaiting: Phase 2 model-design decision by the user
 - **`finding_near_collinear_pairs`** (OPEN_DECISION) — Four continuous channel pairs on the baseline exceed |Pearson r| > 0.999, and none of them appear in dataset.features.command_feedback_pairs, which covers only the six P1_ actuators.
   - action taken: NONE -- behaviour deliberately unchanged. Reported rather than silently fixed, per the standing rule 'do not invent scientific assumptions silently'.
   - awaiting: user decision
@@ -124,6 +129,8 @@ Each was measured and deliberately **not** repaired, because repairing it would 
 
 | Finding | Severity | Resolution |
 |---|---|---|
+| `finding_no_label_column` | RESOLVED_BY_OFFICIAL_LABEL_SIDECARS | dataset.task: labels_from_hai_labels, dataset.label_column: label, dataset.label_file: the official sidecar f… |
+| `finding_official_labels_shipped_separately` | RESOLUTION_RECORD | dataset.task resolved to labels_from_hai_labels by the user |
 | `finding_temporal_acausality` | BLOCKER_RESOLVED_BY_CONFIG | dataset.baseline_source: train1_only (ASSUMPTION [A17]), dataset.allow_acausal_baseline: false, dataset.conca… |
 | `finding_command_feedback_pairs` | LEAKAGE_TRAP | Recorded in config as dataset.features.command_feedback_pairs with dataset.features.exclude_target_sibling: t… |
 | `finding_discrete_vs_continuous` | CORRECTNESS | drift.affected_features.actuator_policy: exclude by default in all Phase 1 scenarios; dataset.features.type_d… |
@@ -150,21 +157,26 @@ Ground-truth consumers, from `ground_truth`:
 
 Configurations present: `default`, `gradual_drift`, `stress_test`, `sudden_drift`
 
-- `default` — resolves and validates, fingerprint `0babd89711c7`
-- `gradual_drift` — resolves and validates, fingerprint `2bdae7eccbca`
-- `stress_test` — resolves and validates, fingerprint `36ec7754a7d1`
-- `sudden_drift` — resolves and validates, fingerprint `7386af21ec89`
+- `default` — resolves and validates, fingerprint `05ceb3f8a677`
+- `gradual_drift` — resolves and validates, fingerprint `d3057993a6af`
+- `stress_test` — resolves and validates, fingerprint `0cb45d07bf20`
+- `sudden_drift` — resolves and validates, fingerprint `4798f50890d7`
 
 ## Raw data
 
-Roles come from `config/default.yaml -> dataset.files`; the file
-names are never written in Python.
+Roles come from `config/default.yaml` — `dataset.files` for the
+process-value streams, `dataset.labels` for the official label
+sidecars, `dataset.reserved_files` for what the loader must not
+reach. The file names are never written in Python.
 
 | File | Recorded role | Size on disk | Matches record | Modified flag |
 |---|---|---|---|---|
 | `hai-train1.txt` | baseline_train | 162,418,984 | yes | False |
 | `hai-train2.txt` | baseline_validation | 169,121,615 | yes | False |
 | `hai-test1.txt` | inference_stream | 31,255,559 | yes | False |
+| `label-test1.txt` | inference_labels | 1,242,017 | yes | False |
+| `hai-test2.txt` | reserved_second_inference_stream | 132,946,575 | yes | False |
+| `label-test2.txt` | reserved_inference_labels | 4,500,018 | yes | False |
 
 _SHA-256 not checked in this run; pass `--hash` (or run the `slow` pytest marker) to verify._
 
@@ -234,4 +246,4 @@ Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.ex
 
 ---
 
-_End of generated report. Fingerprint `b75b19f5df2c6264`; `state_report.py --check` fails if the tree has moved since._
+_End of generated report. Fingerprint `ff89c7a9f8750154`; `state_report.py --check` fails if the tree has moved since._

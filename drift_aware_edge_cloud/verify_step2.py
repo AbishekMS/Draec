@@ -189,21 +189,36 @@ check("3. Scenarios inherit identical non-drift settings", inherit_ok,
 path_ok = True
 ds = resolved.get(BASE, {}).get("dataset", {})
 files = ds.get("files", {})
+labels = ds.get("labels", {})
+reserved = ds.get("reserved_files", {})
+SECTIONS = {"files": files, "labels": labels, "reserved_files": reserved}
+# Every file the config declares, wherever it declares it, with the row count
+# expected of it. Grown 2026-08-27 from three entries to six with the HAI 23.05
+# completion: every declared file has its row count re-counted from disk here,
+# so a config claim about a file can never drift away from the file.
+#
+# The label sidecars and the reserved second stream are looked up in their own
+# sections rather than in `dataset.files`. See the structural check below for
+# why that separation is load-bearing rather than cosmetic.
 EXPECTED = {
-    "train1": ("data/raw/hai-train1.txt", 280800),
-    "train2": ("data/raw/hai-train2.txt", 291600),
-    "test1": ("data/raw/hai-test1.txt", 54000),
+    "files.train1": ("data/raw/hai-train1.txt", 280800),
+    "files.train2": ("data/raw/hai-train2.txt", 291600),
+    "files.test1": ("data/raw/hai-test1.txt", 54000),
+    "labels.test1": ("data/raw/label-test1.txt", 54000),
+    "reserved_files.test2": ("data/raw/hai-test2.txt", 230400),
+    "reserved_files.label_test2": ("data/raw/label-test2.txt", 230400),
 }
 for key, (exp_path, exp_rows) in EXPECTED.items():
-    entry = files.get(key)
+    sect, name = key.split(".")
+    entry = SECTIONS[sect].get(name)
     if not isinstance(entry, dict):
         path_ok = False
-        note(f"  dataset.files.{key}: missing or not a mapping")
+        note(f"  dataset.{key}: missing or not a mapping")
         continue
     p = entry.get("path")
     if p != exp_path:
         path_ok = False
-        note(f"  dataset.files.{key}.path = {p!r}, expected {exp_path!r}")
+        note(f"  dataset.{key}.path = {p!r}, expected {exp_path!r}")
         continue
     on_disk = ROOT / p
     if not on_disk.exists():
@@ -218,17 +233,58 @@ for key, (exp_path, exp_rows) in EXPECTED.items():
         note(f"  {p}: config rows={entry.get('rows')}, measured={actual_rows}, "
              f"expected={exp_rows}")
     else:
-        note(f"  dataset.files.{key}.path = {p} "
+        note(f"  dataset.{key}.path = {p} "
              f"[exists, {actual_rows:,} data rows, matches config]")
 
+# STRUCTURAL: a label sidecar must never be an entry in `dataset.files`.
+# loader.file_specs treats that section as the set of PROCESS-VALUE streams --
+# exactly one `inference_stream`, every other entry a baseline candidate -- so a
+# label file listed there could be selected as baseline training data and
+# normalised as though it carried process values. Declaring labels in their own
+# section makes that unreachable rather than merely discouraged.
+stray = sorted(k for k, e in files.items()
+               if "label" in str(k).lower()
+               or "label" in str(e.get("path", "")).lower())
+if stray:
+    path_ok = False
+    note(f"  dataset.files declares label sidecar(s) {stray} -- these belong "
+         f"under dataset.labels, not among the process-value streams")
+else:
+    note(f"  dataset.files holds {len(files)} process-value stream(s) only; "
+         f"{len(labels)} label sidecar(s) under dataset.labels; "
+         f"{len(reserved)} entry(ies) under dataset.reserved_files, which no "
+         f"loader code path can reach")
+
+# An active label sidecar must name the stream it aligns with, that stream must
+# be a declared process-value stream, and the alignment must have been proven
+# elementwise. A label file whose alignment is merely plausible would score the
+# detector against rows it was never shown to describe.
+for name, entry in labels.items():
+    tgt = entry.get("aligns_with")
+    align = entry.get("alignment")
+    if tgt not in files:
+        path_ok = False
+        note(f"  dataset.labels.{name}.aligns_with = {tgt!r} is not a declared "
+             f"process-value stream")
+    elif align != "elementwise_verified":
+        path_ok = False
+        note(f"  dataset.labels.{name}.alignment = {align!r} -- an active label "
+             f"file must be elementwise-verified against its stream")
+    else:
+        note(f"  dataset.labels.{name} -> dataset.files.{tgt}, "
+             f"alignment={align}")
+
 # configurable = no HAI filename hard-coded anywhere in src/ or tests/
+# Widened 2026-08-27: HAI 23.05 adds test2 and two label sidecars, and a
+# filename that is not scanned for is a filename that can be hard-coded freely.
 hardcoded = []
+HAI_NAME = re.compile(r"(hai-(train1|train2|test1|test2)|label-test[12])\.txt")
 for py in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tests").rglob("*.py")) \
         + list((ROOT / "adaptation").rglob("*.py")) + [ROOT / "main.py"]:
     if not py.exists():
         continue
     txt = io.open(py, encoding="utf-8").read()
-    if re.search(r"hai-(train1|train2|test1)\.txt", txt):
+    if HAI_NAME.search(txt):
         hardcoded.append(str(py.relative_to(ROOT)))
 if hardcoded:
     path_ok = False
@@ -236,7 +292,8 @@ if hardcoded:
 else:
     note("  no HAI filename hard-coded in src/, tests/, adaptation/ or main.py")
 check("4. HAI paths correct and configurable", path_ok,
-      "3/3 files declared, exist, row counts verified")
+      f"{len(EXPECTED)}/{len(EXPECTED)} declared files exist with row counts "
+      f"verified against the files; label sidecars held outside dataset.files")
 
 # =============================================================================
 # 5. Verify train1/train2/test1 roles are explicit
@@ -333,7 +390,13 @@ check("6. No active SWaT-specific paths or values", swat_ok,
 # and (b) treat exactly the raw-input keys as inputs and everything else as
 # output.
 syn_ok = True
-INPUT_KEY = re.compile(r"^dataset\.files\.[A-Za-z0-9_]+\.path$")
+# Widened 2026-08-27: a label sidecar is as much a raw INPUT as a process-value
+# stream -- it is read at evaluation time -- so a derived path declared there
+# would be the same violation. `reserved_files` is included because a reserved
+# entry is a future input, and a violation should be caught when it is written
+# rather than when it is activated.
+INPUT_KEY = re.compile(
+    r"^dataset\.(files|labels|reserved_files)\.[A-Za-z0-9_]+\.path$")
 PATH_KEY = re.compile(r"(^|\.)(path|dir|file|sidecar_path|path_template)$")
 PATH_VALUE = re.compile(r"^[A-Za-z0-9_./\\-]+(/|\\)[A-Za-z0-9_./\\{}-]+$")
 
@@ -353,13 +416,16 @@ for fn in [BASE] + OVERLAYS:
         else:
             note(f"  {fn}: {k} = {v} [output/derivative key, not an input]")
 
-for key, entry in files.items():
-    p = str(entry.get("path", "")).replace("\\", "/")
-    if not p.startswith("data/raw/"):
-        syn_ok = False
-        note(f"  dataset.files.{key}.path = {p} -- not under data/raw/")
+for sect, entries in SECTIONS.items():
+    for key, entry in entries.items():
+        p = str(entry.get("path", "")).replace("\\", "/")
+        if not p.startswith("data/raw/"):
+            syn_ok = False
+            note(f"  dataset.{sect}.{key}.path = {p} -- not under data/raw/")
 if syn_ok:
-    note("  all 3 dataset.files.*.path resolve under data/raw/ (real HAI files)")
+    n_declared = sum(len(e) for e in SECTIONS.values())
+    note(f"  all {n_declared} declared dataset paths resolve under data/raw/ "
+         f"(real HAI files)")
 
 syn_dir = ROOT / "data" / "synthetic"
 syn_contents = sorted(p.name for p in syn_dir.iterdir()
@@ -387,16 +453,24 @@ elif syn_contents:
 else:
     note("  data/synthetic/ empty (output-only directory, nothing generated yet)")
 check("7. No synthetic dataset used as raw input", syn_ok,
-      "raw inputs are the 3 real HAI files only")
+      f"raw inputs are the {sum(len(e) for e in SECTIONS.values())} real HAI "
+      f"files only")
 
 # =============================================================================
 # 8. Verify no fabricated data was created
 # =============================================================================
 fab_ok = True
+# Every raw file the project may read, with the checksum recorded when it was
+# first audited. Extended 2026-08-27 from three entries to six: HAI 23.05 adds
+# test2 and the two official label sidecars, and an unhashed raw file is an
+# unguarded one.
 SOURCE_SHA = {
     "hai-train1.txt": "53007b0ba604fbf338e7ac2e08cd81d874b5d1388f3aecb213ddcba5bf2bec4a",
     "hai-train2.txt": "0e520e82bf78a661ab19ce4967f3c766bd809820f457a9c90c365102d4534c56",
     "hai-test1.txt": "78c7f1d4de1f2ab9ccc2f8c719f80f831033543adb0c81d0d78f84f40838d4be",
+    "hai-test2.txt": "b2b8dd295aefd87e39260fe43cb4c73ee86d6264b0ac4b0761e7efb0c2b545c3",
+    "label-test1.txt": "eaf69edb9c5834bc393afd7bf658b5e408d34fd7bfc3261f80516765fb818fbc",
+    "label-test2.txt": "8090c44981176e39b0f01a7126a80248ac0b93355c00f9db4d4e2f2106452b92",
 }
 import hashlib
 
@@ -433,23 +507,117 @@ for sub in ("processed", "synthetic"):
     else:
         note(f"  data/{sub}/ holds no persisted feature stream")
 
-# label must not have been invented
-lbl = ds.get("label_column", "<absent>")
+# The label must not have been INVENTED.
+#
+# Until 2026-08-27 the only honest state was `label_column: null` and
+# `task: 'unresolved'`, because the three files then on disk shipped no label,
+# and this check asserted exactly that. HAI 23.05 ships official attack labels
+# in SEPARATE sidecar files, and the user resolved the task to use them. So the
+# assertion is not relaxed -- it is replaced by the stronger one it was standing
+# in for all along: a declared label must be READ FROM A FILE THE DISTRIBUTION
+# SHIPPED, provably not derived from the process values.
+lbl = ds.get("label_column")
 task = ds.get("task", "<absent>")
-if lbl is not None:
+RECORDED_TASKS = {"unresolved", "forecasting_regression",
+                  "state_classification", "labels_from_hai_labels"}
+
+if task not in RECORDED_TASKS:
     fab_ok = False
-    note(f"  dataset.label_column = {lbl!r} -- HAI has no label column; "
-         f"must be null")
+    note(f"  dataset.task = {task!r} is not one of the options on record")
+elif task == "unresolved":
+    if lbl is not None:
+        fab_ok = False
+        note(f"  dataset.task is 'unresolved' but label_column = {lbl!r}")
+    else:
+        note("  dataset.task = 'unresolved'; label_column None (not guessed)")
+elif task == "labels_from_hai_labels":
+    lf = ds.get("label_file")
+    lf_path = ROOT / str(lf) if lf else None
+    if not lf or lf_path is None or not lf_path.exists():
+        fab_ok = False
+        note(f"  dataset.label_file = {lf!r} -- absent from disk")
+    elif lf_path.name not in SOURCE_SHA:
+        # An unrecorded label file could be anything, including one we wrote.
+        fab_ok = False
+        note(f"  {lf_path.name}: no checksum on record -- provenance unproven")
+    elif not lbl:
+        fab_ok = False
+        note("  task is 'labels_from_hai_labels' but label_column is null")
+    else:
+        import csv as _csv
+
+        with io.open(lf_path, encoding="utf-8", newline="") as fh:
+            rdr = _csv.reader(fh)
+            header = [h.strip() for h in next(rdr)]
+            col = header.index(lbl) if lbl in header else -1
+            vals = [row[col].strip() for row in rdr if row] if col >= 0 else []
+        # The label column must exist in the label FILE ...
+        if col < 0:
+            fab_ok = False
+            note(f"  label_column {lbl!r} is not a column of {lf_path.name}: "
+                 f"{header}")
+        # ... and must NOT be a column of the process-value stream, which is
+        # what "derived from the process values" would look like.
+        stream = files.get("test1", {}).get("path")
+        stream_hdr: list[str] = []
+        if stream and (ROOT / stream).exists():
+            with io.open(ROOT / stream, encoding="utf-8") as fh:
+                stream_hdr = [h.strip() for h in fh.readline().split(",")]
+        if lbl in stream_hdr:
+            fab_ok = False
+            note(f"  label_column {lbl!r} is ALSO a process-value column -- "
+                 f"that would be a derived label, not an official one")
+        classes = sorted(set(vals))
+        missing = sum(1 for v in vals if v == "")
+        if len(classes) < 2 or missing:
+            fab_ok = False
+            note(f"  {lf_path.name}: {len(classes)} class(es) {classes}, "
+                 f"{missing} missing -- unusable as a classification target")
+        elif str(ds.get("positive_class")) not in classes:
+            fab_ok = False
+            note(f"  dataset.positive_class = {ds.get('positive_class')!r} "
+                 f"is not among the observed classes {classes}")
+        else:
+            note(f"  label {lbl!r} read from shipped {lf_path.name} "
+                 f"(checksum on record); {len(vals):,} labels, classes "
+                 f"{classes}, 0 missing; not a process-value column")
+        # Official labels are evaluation metadata. If they were readable by a
+        # model this whole task would be reading the answer key.
+        forbidden = set(ds.get("label_forbidden_consumers") or [])
+        if ds.get("label_usage") != "evaluation_only" or \
+                not {"models", "drift_detectors"} <= forbidden:
+            fab_ok = False
+            note(f"  official labels not quarantined: label_usage="
+                 f"{ds.get('label_usage')!r}, forbidden={sorted(forbidden)}")
+        else:
+            note(f"  official labels quarantined: evaluation_only, "
+                 f"{len(forbidden)} forbidden consumers")
+        # `dataset.label_file` and `dataset.labels.<stream>.path` state the same
+        # fact twice, and two declarations of one fact drift apart. The file the
+        # loader reads must be the file whose alignment was proven elementwise.
+        stream_key = next((k for k, e in files.items()
+                           if e.get("role") == "inference_stream"), None)
+        declared = (labels.get(stream_key) or {}).get("path")
+        if declared != lf:
+            fab_ok = False
+            note(f"  dataset.label_file = {lf!r} but dataset.labels."
+                 f"{stream_key}.path = {declared!r} -- the alignment-verified "
+                 f"file and the file the loader reads must be the same one")
+        else:
+            note(f"  dataset.label_file agrees with dataset.labels."
+                 f"{stream_key}.path ({lf}); that pairing is the one verified "
+                 f"elementwise")
 else:
-    note("  dataset.label_column = None (no label fabricated)")
-if task != "unresolved":
-    fab_ok = False
-    note(f"  dataset.task = {task!r} -- expected 'unresolved' until the user "
-         f"decides")
-else:
-    note("  dataset.task = 'unresolved' (not guessed)")
+    if not ds.get("target_column"):
+        fab_ok = False
+        note(f"  dataset.task = {task!r} but target_column is null")
+    else:
+        note(f"  dataset.task = {task!r}, target_column "
+             f"{ds.get('target_column')!r}")
+
 check("8. No fabricated data or labels", fab_ok,
-      "3/3 raw files byte-identical; label null; task unresolved")
+      f"{len(SOURCE_SHA)}/{len(SOURCE_SHA)} raw files byte-identical; "
+      f"label read from a shipped sidecar, not derived")
 
 # =============================================================================
 # 9. Verify no Phase 2+ configuration was introduced

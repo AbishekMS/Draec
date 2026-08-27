@@ -226,8 +226,10 @@ def sec_environment() -> list[str]:
 
 def sec_raw(prov: dict, do_hash: bool) -> list[str]:
     lines = ["## Raw data", "",
-             "Roles come from `config/default.yaml -> dataset.files`; the file",
-             "names are never written in Python.", "",
+             "Roles come from `config/default.yaml` — `dataset.files` for the",
+             "process-value streams, `dataset.labels` for the official label",
+             "sidecars, `dataset.reserved_files` for what the loader must not",
+             "reach. The file names are never written in Python.", "",
              "| File | Recorded role | Size on disk | Matches record | Modified flag |",
              "|---|---|---|---|---|"]
     problems = []
@@ -324,9 +326,27 @@ def sec_blocking(cfg: dict, prov: dict) -> list[str]:
     dec = prov.get("ACTIVE_DATASET_DECISION", {})
     q = dec.get("blocking_open_question")
     if q:
-        lines += [f"### {q.get('id','open question')} — `{q.get('config_key')}`",
-                  "",
-                  q.get("why_blocking", ""), "",
+        # A recorded question may since have been answered. Rendering only its
+        # `why_blocking` prose would then report a settled decision as though it
+        # were still blocking -- the exact staleness this generated file exists
+        # to prevent. The question is kept under its original key (superseding a
+        # record loses the history of what was NOT chosen and why), so its
+        # resolution status has to be rendered explicitly.
+        status = str(q.get("status", "OPEN")).upper()
+        heading = f"### {q.get('id','open question')} — `{q.get('config_key')}`"
+        lines += [heading + (f"  ·  **{status}**" if status != "OPEN" else ""), ""]
+        if status != "OPEN":
+            lines += [
+                f"- resolved: **{q.get('resolved_on','?')}** by "
+                f"**{q.get('resolved_by','?')}**",
+                f"- value: `{q.get('config_key')}` was "
+                f"`{q.get('value_before_resolution','?')}`, now "
+                f"`{q.get('current_value','?')}`",
+            ]
+            if q.get("how_it_was_unblocked"):
+                lines.append(f"- how: {q['how_it_was_unblocked']}")
+            lines.append("")
+        lines += [q.get("why_blocking", ""), "",
                   "Options on record, with their consequences:", ""]
         for opt in q.get("options", []):
             lines.append(f"- **`{opt.get('value')}`** — target: "
@@ -338,9 +358,11 @@ def sec_blocking(cfg: dict, prov: dict) -> list[str]:
         lines += ["", f"_{q.get('integrity_rule_applied','')}_", ""]
 
     # A finding is "open" if it names something it is waiting for, OR if its
-    # severity is BLOCKER. `finding_no_label_column` has no `awaiting` field --
-    # what it waits on is the separate blocking question above -- but filing it
-    # under "settled" would read as though the label problem had gone away.
+    # severity is BLOCKER. Both clauses are needed: a BLOCKER with no `awaiting`
+    # field would otherwise be filed under "settled", which would read as though
+    # the problem had gone away. (`finding_no_label_column` was that case until
+    # 2026-08-27, when the official label sidecars resolved it; it is now
+    # correctly reported as settled, and the clause still guards the next one.)
     def is_open(v: dict) -> bool:
         return bool(v.get("awaiting")) or v.get("severity") == "BLOCKER"
 
@@ -363,8 +385,12 @@ def sec_blocking(cfg: dict, prov: dict) -> list[str]:
     if other:
         lines += ["### Findings already settled or accepted as measured fact",
                   "", "| Finding | Severity | Resolution |", "|---|---|---|"]
+        # `action_now` supersedes `action_taken` when a finding has since been
+        # resolved. Both are kept in the record -- deleting the superseded action
+        # would erase the history of what was done while the finding was open --
+        # but rendering the stale one here would report a fixed thing as broken.
         lines += [f"| `{k}` | {v.get('severity')} | "
-                  f"{_first_sentence(v.get('action_taken', ''))} |"
+                  f"{_first_sentence(v.get('action_now') or v.get('action_taken', ''))} |"
                   for k, v in other]
         lines.append("")
     return lines

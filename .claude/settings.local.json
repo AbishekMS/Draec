@@ -56,7 +56,20 @@
       "Bash(export PYTHONIOENCODING=utf-8)",
       "Bash(../.venv/Scripts/python.exe -m pytest -q)",
       "Bash(../.venv/Scripts/python.exe verify_handover.py)",
-      "Bash(../.venv/Scripts/python.exe state_report.py --write)"
+      "Bash(../.venv/Scripts/python.exe state_report.py --write)",
+      "Bash(../.venv/Scripts/python.exe -c *)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe audit_dataset.py data/raw data/raw/HAI_23.05_downloads)",
+      "Bash(../.venv/Scripts/python.exe -m py_compile audit_dataset.py)",
+      "Bash(cp -n data/raw/HAI_23.05_downloads/hai-test2.txt data/raw/HAI_23.05_downloads/label-test1.txt data/raw/HAI_23.05_downloads/label-test2.txt data/raw/)",
+      "Bash(../.venv/Scripts/python.exe verify_step2.py)",
+      "Bash(sed -i 's|    note\\(\"  all 3 dataset.files.\\\\*.path resolve under data/raw/ \\(real HAI files\\)\"\\)|    note\\(f\"  all {len\\(files\\)} dataset.files.*.path resolve under data/raw/ \"\\\\n         f\"\\(real HAI files\\)\"\\)|' verify_step2.py)",
+      "Bash(sed -i 's|      \"raw inputs are the 3 real HAI files only\"\\)|      f\"raw inputs are the {len\\(files\\)} real HAI files only\"\\)|' verify_step2.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe verify_step3.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe verify_step4.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe verify_step5.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe verify_handover.py)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(PYTHONIOENCODING=utf-8 ../.venv/Scripts/python.exe -m pytest -q tests/test_integrity.py::test_provenance_records_every_supplied_file tests/test_integrity.py::test_no_module_fabricates_a_label)"
     ]
   }
 }

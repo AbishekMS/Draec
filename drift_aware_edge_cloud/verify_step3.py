@@ -175,16 +175,53 @@ except loader.CausalityError:
     note("  profile_baseline refused a non-baseline role (sigma cannot come "
          "from test1)")
 
+# The target. Until 2026-08-27 this asserted only that resolve_target REFUSES,
+# because dataset.task was 'unresolved'. HAI 23.05 ships official label sidecars
+# and the task is now resolved, so asserting a refusal on the live config would
+# be asserting something false. The guard is not dropped -- it is split into the
+# four statements it was standing in for, three of which are new:
+#   (a) on the live config the target resolves to the sidecar's label column,
+#   (b) and that column is NOT a process channel (i.e. not a derived label),
+#   (c) the refusal still fires on a config whose task is 'unresolved',
+#   (d) and a task claiming official labels with no label_file still refuses,
+#       so the resolution cannot be half-declared.
+target = loader.resolve_target(d)
+declared_label = d["dataset"]["label_column"]
+if target != declared_label:
+    causal_ok = False
+    note(f"  FAIL: resolve_target returned {target!r}, expected the declared "
+         f"label column {declared_label!r}")
+elif target in set(columns):
+    causal_ok = False
+    note(f"  FAIL: target {target!r} is also a process-value column -- that "
+         f"would be a derived label, not the official one")
+else:
+    note(f"  resolve_target -> {target!r}, read from the official label sidecar; "
+         f"absent from the {len(columns)} process-value columns (not derived)")
+
+unresolved = copy.deepcopy(d)
+unresolved["dataset"]["task"] = "unresolved"
 try:
-    loader.resolve_target(d)
+    loader.resolve_target(unresolved)
     causal_ok = False
     note("  FAIL: resolve_target returned a target while task is 'unresolved'")
 except loader.UnresolvedTaskError:
-    note("  resolve_target raises while dataset.task is 'unresolved' "
+    note("  resolve_target still raises while dataset.task is 'unresolved' "
          "(no label fabricated)")
 
+half = copy.deepcopy(d)
+half["dataset"]["label_file"] = None
+try:
+    loader.resolve_target(half)
+    causal_ok = False
+    note("  FAIL: resolve_target accepted 'labels_from_hai_labels' with no "
+         "label_file")
+except loader.ConfigError:
+    note("  resolve_target refuses 'labels_from_hai_labels' without a "
+         "label_file (the label must come from a real shipped file)")
+
 check("4. Leakage/causality guards fire: acausal baseline, inference-derived "
-      "sigma, unresolved target", causal_ok,
+      "sigma, half-declared or unresolved target", causal_ok,
       "each violation raises rather than degrading quietly")
 
 # =============================================================================
