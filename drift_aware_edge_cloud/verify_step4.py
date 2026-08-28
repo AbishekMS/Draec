@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import gc
 import io
 import sys
 from pathlib import Path
@@ -198,6 +199,8 @@ check(
     f"{sum(ok for _, ok, _ in guards)}/{len(guards)} guards raised the right "
     f"exception",
 )
+del _hole, guards, _c
+gc.collect()
 
 # =============================================================================
 # 4. Frozen z-score is correct on the data it was fitted on
@@ -213,6 +216,8 @@ check(
     f"max |mean| = {mu_err:.3e}, max |std - 1| = {sd_err:.3e} over "
     f"{Zb.shape[0]:,} x {Zb.shape[1]} values",
 )
+del prep_base, Zb
+gc.collect()
 
 # =============================================================================
 # 5. Purity -- transform mutates nothing it was given
@@ -235,6 +240,8 @@ check(
     f"all {len(prep_inf.raw_frame.columns)} post-pipeline raw columns "
     f"value-identical to the recorded file: {raw_matches}",
 )
+del before_infer, before_baseline
+gc.collect()
 
 # =============================================================================
 # 6. What the pipeline measured on the real, undrifted inference stream
@@ -299,6 +306,8 @@ check(
     f"{pre_identical}; drift-attributable shift = {survived:.4f} sigma "
     f"(clean-stream shift {shift_clean:+.4f} is the confound and is subtracted)",
 )
+del Zd, Zc
+gc.collect()
 
 # =============================================================================
 # 9. Drift absorption by adaptation mode -- the [A6] measurement
@@ -328,6 +337,8 @@ check(
     f"rolling={w_shift:.4f} sigma -- the ordering the module's docstring "
     f"predicts, and the reason frozen_after_baseline is the default",
 )
+del stats_by_mode, absorb, sbaseline, sprofile, baseline
+gc.collect()
 
 # =============================================================================
 # 10. Windowed feature extraction
@@ -388,9 +399,10 @@ check(
 # =============================================================================
 k = 2000
 wk = windows[k]
-poisoned = prep_drift.frame.copy()
+cutoff = min(len(prep_drift.frame), wk.end_index + 1000)
+poisoned = prep_drift.frame.iloc[:cutoff].copy()
 poisoned.iloc[wk.end_index:, :] = 999999.0
-poisoned_raw = prep_drift.raw_frame.copy()
+poisoned_raw = prep_drift.raw_frame.iloc[:cutoff].copy()
 poisoned_raw.iloc[wk.end_index:, :] = 999999.0
 prep_poisoned = dataclasses.replace(
     prep_drift, frame=poisoned, raw_frame=poisoned_raw)
@@ -405,11 +417,15 @@ check(
     f"[{wk.start_index}:{wk.end_index}] features bit-identical: {unchanged}; "
     f"window {k - 1} also identical: {earlier_unchanged}",
 )
+del poisoned, poisoned_raw, prep_poisoned, fm_p
+gc.collect()
 
 # =============================================================================
 # 13. Determinism / idempotence
 # =============================================================================
 prep_again = preprocessing.transform(scfg, drifted, sstats)
+del drifted
+gc.collect()
 fm_again = preprocessing.extract_features(scfg, prep_again, windows)
 det = (prep_again.frame.equals(prep_drift.frame)
        and np.array_equal(fm_again.X, fm.X)
@@ -421,6 +437,8 @@ check(
     f"bit-identical {fm.X.shape[0]:,} x {fm.X.shape[1]} matrix and the same "
     f"feature ordering",
 )
+del prep_again, fm_again, prep_drift
+gc.collect()
 
 # =============================================================================
 # 14. Drift is visible in the FEATURES, not just the raw stream
@@ -433,14 +451,26 @@ mean_cols = [names.index(f"{c}__mean") for c in affected]
 pre_v = fm.X[pre_mask][:, mean_cols].mean(axis=0)
 post_v = fm.X[post_mask][:, mean_cols].mean(axis=0)
 delta = float(np.mean(post_v - pre_v))
+fm_start_onset = int(fm.start_index[onset_window])
+fm_end_onset_prev = int(fm.end_index[onset_window - 1])
+
+del fm, windows
+gc.collect()
+
 prep_clean_full = prep_inf
+clean_windows = list(stream.iter_windows(sinfer, scfg,
+                                        valid_mask=prep_clean_full.quality.valid))
 fm_clean = preprocessing.extract_features(
-    scfg, prep_clean_full,
-    list(stream.iter_windows(sinfer, scfg,
-                             valid_mask=prep_clean_full.quality.valid)))
+    scfg, prep_clean_full, clean_windows)
+del clean_windows
+gc.collect()
+
 pre_c = fm_clean.X[pre_mask][:, mean_cols].mean(axis=0)
 post_c = fm_clean.X[post_mask][:, mean_cols].mean(axis=0)
 delta_c = float(np.mean(post_c - pre_c))
+del fm_clean
+gc.collect()
+
 note(f"window-level __mean shift on affected channels: drifted={delta:+.4f}, "
      f"clean={delta_c:+.4f}, attributable={delta - delta_c:+.4f} sigma")
 note(f"onset row {start:,} -> window {onset_window:,}; {straddle} straddling "
@@ -448,8 +478,8 @@ note(f"onset row {start:,} -> window {onset_window:,}; {straddle} straddling "
 check(
     "14. drift reaches the feature vectors and the onset maps to a window",
     abs(delta - delta_c) > 1.0 and straddle >= 1
-    and fm.start_index[onset_window] >= start
-    and fm.end_index[onset_window - 1] > start,
+    and fm_start_onset >= start
+    and fm_end_onset_prev > start,
     f"attributable window-level shift {delta - delta_c:+.4f} sigma; onset row "
     f"{start:,} -> first fully post-drift window {onset_window:,}; "
     f"{straddle} straddling window(s)",

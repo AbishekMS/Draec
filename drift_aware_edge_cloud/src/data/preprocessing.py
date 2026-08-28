@@ -43,6 +43,7 @@ unusual observations and dropping them would erase the signal under study.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import gc
 from typing import Any, Iterable, Mapping, Sequence
 
 import numpy as np
@@ -308,20 +309,26 @@ def _validate(
         )
 
     if v.get("check_timestamp_monotonic", True):
-        diffs = timestamps.diff().dt.total_seconds().to_numpy()[1:]
-        n_back = int(np.sum(diffs < 0))
+        ts_vals = timestamps.to_numpy(copy=False)
+        is_back = ts_vals[1:] < ts_vals[:-1]
+        n_back = int(np.count_nonzero(is_back))
         if n_back:
             msg = f"{n_back:,} non-monotonic timestamp step(s)"
             if on_failure == "raise":
                 raise PreprocessingError(msg)
-            q.validation_failed[1:][diffs < 0] = True
+            q.validation_failed[1:][is_back] = True
             q.notes.append(msg)
 
     if v.get("check_duplicate_timestamps", True):
-        dup = timestamps.duplicated(keep="first").to_numpy()
-        if dup.any():
-            q.validation_failed |= dup
-            q.notes.append(f"{int(dup.sum()):,} duplicate timestamp(s) flagged")
+        ts_vals = timestamps.to_numpy(copy=False)
+        is_dup_adjacent = ts_vals[1:] == ts_vals[:-1]
+        if not np.any(is_dup_adjacent) and timestamps.is_monotonic_increasing:
+            pass
+        else:
+            dup = timestamps.duplicated(keep="first").to_numpy()
+            if dup.any():
+                q.validation_failed |= dup
+                q.notes.append(f"{int(dup.sum()):,} duplicate timestamp(s) flagged")
 
     if v.get("check_dtypes", True):
         bad = [c for c in frame.columns
@@ -346,17 +353,19 @@ def _validate(
         tol = float(v.get("range_tolerance_sigma", 6.0))
         lo, hi = stats.valid_range(tol)
         cols = [c for c in frame.columns if c in stats.columns]
-        f_arr = frame[cols].to_numpy(dtype=float, copy=False)
-        lo_arr = lo[cols].to_numpy(dtype=float)
-        hi_arr = hi[cols].to_numpy(dtype=float)
-        below = (f_arr < lo_arr)
-        above = (f_arr > hi_arr)
-        viol = np.nan_to_num(below | above, copy=False, nan=0.0)
-        per_col = viol.sum(axis=0)
-        q.n_range_violations_by_column = {
-            c: int(per_col[idx]) for idx, c in enumerate(cols) if int(per_col[idx]) > 0
-        }
-        row_viol = viol.any(axis=1)
+        row_viol = np.zeros(len(frame), dtype=bool)
+        n_range_violations = {}
+        for c in cols:
+            col_vals = frame[c].to_numpy(dtype=float, copy=False)
+            lo_val = float(lo[c])
+            hi_val = float(hi[c])
+            col_viol = (col_vals < lo_val) | (col_vals > hi_val)
+            col_viol = np.nan_to_num(col_viol, copy=False, nan=0.0).astype(bool)
+            count = int(np.count_nonzero(col_viol))
+            if count > 0:
+                n_range_violations[c] = count
+                row_viol |= col_viol
+        q.n_range_violations_by_column = n_range_violations
         q.range_violation |= row_viol
         q.validation_failed |= row_viol
         q.notes.append(
@@ -507,14 +516,26 @@ def _flag_outliers(
             f"PROVENANCE.json finding_degenerate_outlier_bounds."
         )
 
-    sub_arr = sub.to_numpy(dtype=float, copy=False)
-    lo_arr = lo[cols].to_numpy(dtype=float)
-    hi_arr = hi[cols].to_numpy(dtype=float)
-    flagged = (sub_arr < lo_arr) | (sub_arr > hi_arr)
-    flagged = np.nan_to_num(flagged, copy=False, nan=0.0)
-    per_col = flagged.sum(axis=0)
-    q.n_outliers_by_column = {c: int(per_col[idx]) for idx, c in enumerate(cols) if int(per_col[idx]) > 0}
-    q.outlier |= flagged.any(axis=1)
+    row_outlier = np.zeros(len(frame), dtype=bool)
+    deg_set = set(degenerate)
+    alt = np.zeros(len(frame), dtype=bool) if degenerate else None
+    n_outliers = {}
+
+    for c in cols:
+        vals = frame[c].to_numpy(dtype=float, copy=False)
+        lo_val = float(lo[c])
+        hi_val = float(hi[c])
+        col_flag = (vals < lo_val) | (vals > hi_val)
+        col_flag = np.nan_to_num(col_flag, copy=False, nan=0.0).astype(bool)
+        count = int(np.count_nonzero(col_flag))
+        if count > 0:
+            n_outliers[c] = count
+            row_outlier |= col_flag
+            if degenerate and c not in deg_set:
+                alt |= col_flag
+
+    q.n_outliers_by_column = n_outliers
+    q.outlier |= row_outlier
 
     n_rows_flagged = int(q.outlier.sum())
     q.notes.append(
@@ -523,12 +544,11 @@ def _flag_outliers(
         f"{action}"
     )
     if degenerate:
-        keep_idx = [idx for idx, c in enumerate(cols) if c not in set(degenerate)]
-        alt = flagged[:, keep_idx].any(axis=1) if keep_idx else np.zeros(len(frame), dtype=bool)
+        keep_cols = [c for c in cols if c not in deg_set]
         q.notes.append(
             f"same measurement EXCLUDING the {len(degenerate)} degenerate "
             f"channel(s): {int(alt.sum()):,} row(s) = {float(alt.mean()):.4%} "
-            f"over {len(keep_idx)} channel(s) -- reported for interpretation only; "
+            f"over {len(keep_cols)} channel(s) -- reported for interpretation only; "
             f"the flags above are unmodified"
         )
     if action == "clip":
@@ -611,7 +631,6 @@ def _normalize(
     adaptation = str(n.get("adaptation", "frozen_after_baseline"))
     eps = float(n.get("epsilon", 1e-8))
     cols = list(frame.columns)
-    X = frame[cols].to_numpy(dtype=float)
 
     if method == "minmax":
         if adaptation != "frozen_after_baseline":
@@ -623,8 +642,9 @@ def _normalize(
         lo = stats.minimum[cols].to_numpy(dtype=float)
         hi = stats.maximum[cols].to_numpy(dtype=float)
         Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
-        np.subtract(X, lo, out=Z)
-        np.divide(Z, np.maximum(hi - lo, eps), out=Z)
+        denom = np.maximum(hi - lo, eps)
+        for j, c in enumerate(cols):
+            Z[:, j] = (frame[c].to_numpy(dtype=float, copy=False) - lo[j]) / denom[j]
         q.notes.append("minmax normalization against frozen baseline range")
         return pd.DataFrame(Z, columns=cols, index=frame.index, copy=False)
     if method == "none":
@@ -638,9 +658,10 @@ def _normalize(
     if adaptation == "frozen_after_baseline":
         mu = stats.mean[cols].to_numpy(dtype=float)
         sd = stats.std[cols].to_numpy(dtype=float)
+        denom = np.maximum(sd, eps)
         Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
-        np.subtract(X, mu, out=Z)
-        np.divide(Z, np.maximum(sd, eps), out=Z)
+        for j, c in enumerate(cols):
+            Z[:, j] = (frame[c].to_numpy(dtype=float, copy=False) - mu[j]) / denom[j]
         q.notes.append(
             "z-score against FROZEN baseline statistics: an injected mean shift "
             "survives normalization and stays visible to the drift detector"
@@ -653,11 +674,11 @@ def _normalize(
         n0 = float(stats.n_rows)
         mu0 = stats.mean[cols].to_numpy(dtype=float)
         var0 = np.square(stats.std[cols].to_numpy(dtype=float))
-        counts = n0 + np.arange(1, X.shape[0] + 1, dtype=float)
+        counts = n0 + np.arange(1, len(frame) + 1, dtype=float)
         Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
 
-        for j in range(len(cols)):
-            col_x = np.nan_to_num(X[:, j], copy=True)
+        for j, c in enumerate(cols):
+            col_x = np.nan_to_num(frame[c].to_numpy(dtype=float, copy=False), copy=True)
             sum_x = n0 * mu0[j] + np.cumsum(col_x)
             sum_x2 = n0 * (var0[j] + mu0[j]**2) + np.cumsum(col_x ** 2)
             mu_j = sum_x / counts
@@ -685,13 +706,13 @@ def _normalize(
     Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
     n_hist = len(hist)
 
-    for j in range(len(cols)):
-        col_joined = np.concatenate([hist[:, j], X[:, j]])
+    for j, c in enumerate(cols):
+        col_joined = np.concatenate([hist[:, j], frame[c].to_numpy(dtype=float, copy=False)])
         s = pd.Series(col_joined)
         roll = s.rolling(w, min_periods=1)
         mu_j = roll.mean().to_numpy()[n_hist:]
         sd_j = roll.std(ddof=0).to_numpy()[n_hist:]
-        Z[:, j] = (X[:, j] - mu_j) / np.maximum(sd_j, eps)
+        Z[:, j] = (frame[c].to_numpy(dtype=float, copy=False) - mu_j) / np.maximum(sd_j, eps)
 
     q.notes.append(
         f"z-score against a {w}-row ROLLING window seeded with {len(hist):,} "
@@ -723,7 +744,7 @@ def transform(
         c for c in stats.columns if c in source.frame.columns
     ]
     missing_cols = [c for c in stats.columns if c not in source.frame.columns]
-    frame = source.frame.loc[:, cols].astype(float).reset_index(drop=True)
+    frame = source.frame[cols].reset_index(drop=True)
     timestamps = pd.Series(source.timestamps).reset_index(drop=True)
     block_id = (
         pd.Series(source.block_id).reset_index(drop=True)
@@ -755,7 +776,12 @@ def transform(
 
     # Validity for windowing. An outlier flag does NOT invalidate a row: the
     # whole point is that unusual post-drift values reach the detector.
-    q.valid = ~(q.unfilled | normalized.isna().any(axis=1).to_numpy())
+    norm_na = np.zeros(len(normalized), dtype=bool)
+    for c in normalized.columns:
+        col_na = normalized[c].isna().to_numpy(copy=False)
+        if col_na.any():
+            norm_na |= col_na
+    q.valid = ~(q.unfilled | norm_na)
     q.notes.append(
         "valid = row is complete after causal imputation. Outlier and range "
         "flags do NOT invalidate a row -- excluding them would discard the "
@@ -890,8 +916,8 @@ def extract_features(
     # Discrete channels are summarised from RAW values: the mode of a z-scored
     # state is not an interpretable state, and n_changes must count real
     # transitions.
-    Cn = prepared.frame.loc[:, cont_cols].to_numpy(dtype=float)
-    Dn = prepared.raw_frame.loc[:, disc_cols].to_numpy(dtype=float)
+    cont_arrays = [prepared.frame[c].to_numpy(copy=False) for c in cont_cols]
+    disc_arrays = [prepared.raw_frame[c].to_numpy(copy=False) for c in disc_cols]
     out_flags = prepared.quality.outlier
     rng_flags = prepared.quality.range_violation
     valid = prepared.quality.valid
@@ -913,9 +939,11 @@ def extract_features(
             slope_x = xs - xs.mean()
         parts = []
         if cont_cols:
-            parts.append(_window_block(Cn[s:e], cont_stats, slope_x))
+            w_cont = np.column_stack([arr[s:e] for arr in cont_arrays])
+            parts.append(_window_block(w_cont, cont_stats, slope_x))
         if disc_cols:
-            parts.append(_discrete_block(Dn[s:e], disc_stats))
+            w_disc = np.column_stack([arr[s:e] for arr in disc_arrays])
+            parts.append(_discrete_block(w_disc, disc_stats))
         if parts:
             if len(parts) > 1:
                 np.concatenate(parts, out=X[i])
@@ -982,10 +1010,12 @@ def measure_drift_absorption(
         norm["adaptation"] = mode
         pp["normalization"] = norm
         cfg["preprocessing"] = pp
-        prepared = transform(cfg, source, stats)
-        Z = prepared.frame.loc[:, cols].to_numpy(dtype=float)
+        prepared = transform(cfg, source, stats, columns=cols)
+        Z = prepared.frame.to_numpy(dtype=float, copy=False)
         pre = Z[:drift_start_index].mean(axis=0)
         post = Z[drift_start_index:].mean(axis=0)
+        del prepared, Z
+        gc.collect()
         shift = float(np.mean(post - pre))
         out[mode] = {
             "mean_normalized_shift_sigma": shift,

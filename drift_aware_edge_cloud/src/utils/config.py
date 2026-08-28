@@ -55,6 +55,7 @@ KNOWN_SECTIONS = (
     "split",
     "preprocessing",
     "drift",
+    "decision",
     "ground_truth",
     "streaming",
     "output",

@@ -611,6 +611,30 @@ drift:
       default_n_features: 37 # N_F feature count for quality Q_t normalization
 
 # -----------------------------------------------------------------------------
+# 5b. DECISION ENGINE (PHASE 5)
+# -----------------------------------------------------------------------------
+decision:
+  adaptive:
+    initial_action: EDGE
+    cloud_threshold: 0.50
+    edge_return_threshold: 0.70
+    critical_cloud_threshold: 0.30
+    transition_mode: tiered
+
+  hybrid:
+    enabled: true
+    fallback_confidence_threshold: 0.60
+    fallback_on_uncertainty: true
+
+  baseline:
+    policy: edge_only
+    ratio: 0.5
+
+  instrumentation:
+    enabled: true
+    max_records: 10000
+
+# -----------------------------------------------------------------------------
 # 6. GROUND TRUTH  (EVALUATION ONLY -- QUARANTINED)
 # -----------------------------------------------------------------------------
 # The generator knows the true drift onset because it created it. That

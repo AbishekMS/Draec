@@ -905,10 +905,53 @@ behind.
 - `pytest tests/test_reliability.py`: 26/26 PASS
 - Complete regression suite green.
 
+## D-024 · 2026-08-28 · decision · Phase 5 DRAEC Decision Engine and Minimal Execution Layer
+
+**Context.** Phase 5 defines and implements the DRAEC Decision Engine and minimal execution layer, routing streaming inference across the discrete action space $a_t \in \{\text{EDGE}, \text{CLOUD}, \text{HYBRID}\}$ driven by the frozen Phase 4 prediction reliability signal $R_t \in [0, 1]$ and causal runtime state.
+
+**Architectural Formulations & Invariants:**
+1. **Discrete Action Space & Semantics:**
+   $$a_t \in \{\text{EDGE}, \text{CLOUD}, \text{HYBRID}\}$$
+   - **EDGE:** Execute Edge River Hoeffding Tree Classifier and return its prediction.
+   - **CLOUD:** Execute Cloud XGBoost Classifier and return its prediction.
+   - **HYBRID:** Edge-first inference. Edge executes first; if the causal confidence condition indicates Edge is insufficient ($C_{\text{edge}} < \tau_{\text{fallback}}$, default 0.60), Cloud fallback is invoked and Cloud provides the final result (`cloud_fallback = True`). No probability averaging or ensemble fusion.
+
+2. **Adaptive Controller with State-Machine Hysteresis:**
+   - Primary reliability signal: $R_t \in [0, 1]$ from Phase 4.
+   - Configurable experimental default thresholds:
+     $$\tau_{\text{critical}} = 0.30 < \tau_{\text{cloud}} = 0.50 < \tau_{\text{return}} = 0.70$$
+   - Deterministic transitions respecting current state:
+     - When `EDGE`: $R_t \ge 0.50 \implies \text{EDGE}$; $0.30 \le R_t < 0.50 \implies \text{HYBRID}$; $R_t < 0.30 \implies \text{CLOUD}$.
+     - When `HYBRID`: $R_t \ge 0.70 \implies \text{EDGE}$; $R_t < 0.30 \implies \text{CLOUD}$; $0.30 \le R_t < 0.70 \implies \text{HYBRID}$.
+     - When `CLOUD`: $R_t \ge 0.70 \implies \text{EDGE}$; $R_t < 0.70 \implies \text{CLOUD}$.
+   - The deadband $[0.50, 0.70)$ prevents rapid high-frequency chatter between Edge and Cloud under noisy reliability fluctuations. Thresholds are documented as configurable experimental defaults, not scientifically optimal constants.
+
+3. **Static Baseline Controller:**
+   - Dedicated `StaticBaselineController` that operates completely independently of $R_t$, $D_t$, and adaptive reliability feedback.
+   - Supports fixed deterministic policies (`edge_only`, `cloud_only`, `fixed_ratio`, `round_robin`, `static_hybrid`) under the uniform `BaseController` interface to enable unbiased scientific baseline comparisons in Phase 10.
+
+4. **Two-Level Hybrid Architecture:**
+   - **Level 1 (Action Selection):** Controller selects $a_t \in \{\text{EDGE}, \text{CLOUD}, \text{HYBRID}\}$ driven by $R_t$.
+   - **Level 2 (Execution):** When $a_t = \text{HYBRID}$, Edge runs first; if $C_{\text{edge}} = 2 \cdot (\max(P_0, P_1) - 0.5) < 0.60$, Cloud is invoked and provides the final output.
+
+5. **Causality, Anti-Leakage & Scope Boundaries:**
+   - Operates strictly on causal observation $t$ feature inputs without querying `Target` or inspecting `ground_truth.json`.
+   - Preserves frozen WUSTL dataset semantics: training on `train1` only; `train2` and `test1` labels strictly quarantined.
+   - Scope is restricted to Phase 5 minimal execution: no physical deployment, MQTT, containerization, formal monitoring (Phase 7), or model retraining (Phase 9).
+
+6. **Lightweight Instrumentation:**
+   - Memory-bounded telemetry tracking decision counts, action counts (Edge/Cloud/Hybrid), fallback counts, switch counts, and wall-clock execution latencies.
+
+**Verification.**
+- `verify_phase5.py`: 21/21 PASS
+- `pytest tests/test_decision.py`: 28/28 PASS
+- Complete regression suite green.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.
      Never edit or delete an existing entry; supersede it with a new one. -->
+
 
 
 

@@ -621,12 +621,12 @@ check("8. No fabricated data or labels", fab_ok,
 phase_ok = True
 ALLOWED_SECTIONS = {
     "_extends", "meta", "reproducibility", "dataset", "split", "preprocessing",
-    "drift", "ground_truth", "streaming", "output", "reserved_for_later_phases",
+    "drift", "decision", "ground_truth", "streaming", "output", "reserved_for_later_phases",
 }
 # Names that would mean a later-phase component had been configured for real.
 LATER_PHASE_KEYS = re.compile(
     r"^(model|models|edge|cloud|hybrid|adwin|drift_detector|detector|"
-    r"reliability|lri|wds|controller|decision|network|edge_resources|"
+    r"reliability|lri|wds|controller|network|edge_resources|"
     r"resources|adaptation|retraining|simpy|baselines|ablations|experiments|"
     r"metrics|statistics|dashboard|mlflow)$"
 )
@@ -694,6 +694,9 @@ IMPLEMENTED_BY_STEP = {
     "src\\reliability\\base.py": "Phase 4",
     "src\\reliability\\estimator.py": "Phase 4",
     "src\\reliability\\__init__.py": "Phase 4",
+    "src\\decision\\base.py": "Phase 5",
+    "src\\decision\\engine.py": "Phase 5",
+    "src\\decision\\__init__.py": "Phase 5",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

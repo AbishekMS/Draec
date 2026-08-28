@@ -104,6 +104,9 @@ def _get_or_fit_baseline_stats(config: Mapping[str, Any], root: Path | str) -> t
         baseline = loader.load_baseline(config, root=root)
         profile = loader.profile_baseline(config, baseline)
         stats = preprocessing.fit(config, baseline, profile)
+        del baseline
+        import gc
+        gc.collect()
         _CACHED_BASELINE_STATS = (profile, stats)
     return _CACHED_BASELINE_STATS
 
@@ -138,6 +141,9 @@ def load_causal_train_data(
 
     prep = preprocessing.transform(config, train_file, stats)
     X_train = prep.frame
+    del train_file, prep
+    import gc
+    gc.collect()
     y_train = extract_partition_labels(config, "baseline_train", root=root, max_rows=max_rows)
 
     if max_rows is not None:
@@ -184,6 +190,9 @@ def load_causal_eval_data(
 
     prep = preprocessing.transform(config, loaded_file, stats)
     X_eval = prep.frame
+    del loaded_file, prep
+    import gc
+    gc.collect()
     y_eval = extract_partition_labels(config, role, root=root, max_rows=max_rows)
 
     if len(X_eval) != len(y_eval):
