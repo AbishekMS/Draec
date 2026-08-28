@@ -866,10 +866,50 @@ behind.
 - `pytest tests/test_drift.py`: 20/20 PASS
 - Handover contract passes with zero discrepancies.
 
+## D-023 · 2026-08-28 · decision · Phase 4 DRAEC Prediction Reliability Estimation Layer
+
+**Context.** Phase 4 defines and implements the DRAEC prediction reliability estimation layer $R_t \in [0, 1]$, combining prediction confidence $C_t$, recent prediction error $E_t$, smoothed drift severity $D_t$, and causal data/sensor quality $Q_t$.
+
+**Mathematical Formulations & Invariants:**
+1. **Prediction Confidence $C_t$:**
+   Evaluated immediately at inference time from binary class probabilities $\{P_t(0), P_t(1)\}$ without requiring ground-truth Target:
+   $$C_t = 2 \cdot (\max(P_t(0), P_t(1)) - 0.5) \in [0, 1]$$
+   $C_t = 0.0$ corresponds to maximum classification ambiguity ($P(0) = P(1) = 0.5$); $C_t = 1.0$ represents deterministic certainty.
+
+2. **Instantaneous Loss & Recent Error $E_t$ (Delayed Feedback Support):**
+   When legitimate ground-truth feedback arrives:
+   $$e_t = \mathbb{I}(\hat{y}_t \ne y_t) \in \{0, 1\}$$
+   Recent error is tracked via exponential moving average:
+   $$E_t = \alpha_E \cdot E_{t-1} + (1 - \alpha_E) \cdot e_t, \quad \alpha_E = 0.8$$
+   In operational streaming where labels are delayed or absent, the estimator retains its previous $E_t$ state without fabricating errors or looking ahead.
+
+3. **Drift Severity $D_t$:**
+   Directly consumes Phase 3 `smoothed_severity` ($D_t \in [0, 1]$), which measures distance from the frozen causal baseline mean. It does not use ADWIN's transient boolean alarms.
+
+4. **Data/Sensor Quality $Q_t$:**
+   Dataset-independent formulation for $N_F$ features:
+   $$Q_t = \frac{1}{N_F} \sum_{j=1}^{N_F} q_{j,t} \in [0, 1]$$
+   Instantiated on WUSTL-IIoT-2021 with $N_F = 37$ features, computed causally from Phase 1 `QualityReport` without introducing arbitrary penalties.
+
+5. **Weighted Harmonic Mean Combination ($R_t$):**
+   Reliability-oriented factors: $r_C = C_t$, $r_E = 1 - E_t$, $r_D = 1 - D_t$, $r_Q = Q_t \in [0, 1]$.
+   $$R_t = \frac{w_C + w_E + w_D + w_Q}{\frac{w_C}{r_C + \epsilon} + \frac{w_E}{r_E + \epsilon} + \frac{w_D}{r_D + \epsilon} + \frac{w_Q}{r_Q + \epsilon}}$$
+   Initial experimental equal weights: $w_C = w_E = w_D = w_Q = 0.25$, with stability parameter $\epsilon = 10^{-8}$.
+   Satisfies the weakest-link principle: severe degradation in any single factor collapses $R_t$ toward zero.
+
+6. **Global Scope & Causality:**
+   $R_t$ is a global inference condition reliability metric; it does not introduce action scores ($R_{\text{edge}}, R_{\text{cloud}}$) or network/controller logic (deferred to later phases). Ground truth remains strictly quarantined in `ground_truth.forbidden_consumers`.
+
+**Verification.**
+- `verify_phase4.py`: 12/12 PASS
+- `pytest tests/test_reliability.py`: 26/26 PASS
+- Complete regression suite green.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.
      Never edit or delete an existing entry; supersede it with a new one. -->
+
 
 
 

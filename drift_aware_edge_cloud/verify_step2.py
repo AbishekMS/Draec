@@ -691,6 +691,9 @@ IMPLEMENTED_BY_STEP = {
     "src\\drift\\persistence.py": "Phase 3",
     "src\\drift\\severity.py": "Phase 3",
     "src\\drift\\__init__.py": "Phase 3",
+    "src\\reliability\\base.py": "Phase 4",
+    "src\\reliability\\estimator.py": "Phase 4",
+    "src\\reliability\\__init__.py": "Phase 4",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

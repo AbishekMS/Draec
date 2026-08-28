@@ -41,7 +41,11 @@ PHASE_3_MODULES = {
     "src/drift/__init__.py", "src/drift/adwin_detector.py",
     "src/drift/persistence.py", "src/drift/severity.py",
 }
-IMPLEMENTED = PHASE_1_MODULES | PHASE_2_MODULES | PHASE_3_MODULES
+PHASE_4_MODULES = {
+    "src/reliability/__init__.py", "src/reliability/base.py",
+    "src/reliability/estimator.py",
+}
+IMPLEMENTED = PHASE_1_MODULES | PHASE_2_MODULES | PHASE_3_MODULES | PHASE_4_MODULES
 GT_FIELDS = ("scenario", "drift_start_index", "drift_end_index",
              "affected_features", "drift_magnitude", "random_seed")
 
