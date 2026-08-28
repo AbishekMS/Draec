@@ -1,21 +1,21 @@
 {
   "scenario": "sudden",
-  "drift_start_index": 27000,
-  "drift_end_index": 54000,
+  "drift_start_index": 312306,
+  "drift_end_index": 624613,
   "affected_features": [
-    "P3_LCV01D",
-    "P3_LCP01D",
-    "P3_LIT01",
-    "P4_ST_GOV",
-    "P3_FIT01"
+    "Load",
+    "SrcLoad",
+    "TotAppByte",
+    "TotBytes",
+    "IdleTime"
   ],
   "drift_magnitude": 2.0,
   "realised_magnitude": {
-    "P3_LCV01D": 1.7672585606653544,
-    "P3_LCP01D": 1.6929719890392718,
-    "P3_LIT01": 1.6238149957904582,
-    "P4_ST_GOV": 1.9999999999999996,
-    "P3_FIT01": 1.8914977933214894
+    "Load": 2.0,
+    "SrcLoad": 2.0,
+    "TotAppByte": 2.0,
+    "TotBytes": 1.9999999999999998,
+    "IdleTime": 2.000000000000001
   },
   "mechanism": "offset",
   "random_seed": 42

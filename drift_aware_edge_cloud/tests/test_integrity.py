@@ -28,11 +28,16 @@ import pytest
 from src.data import generator, loader, preprocessing as pp
 
 PROVENANCE = "data/raw/PROVENANCE.json"
-IMPLEMENTED = {
+PHASE_1_MODULES = {
     "src/data/loader.py", "src/data/generator.py", "src/data/stream.py",
     "src/data/preprocessing.py", "src/utils/config.py", "src/utils/seed.py",
     "src/utils/logger.py",
 }
+PHASE_2_MODULES = {
+    "src/models/__init__.py", "src/models/base.py", "src/models/cloud_model.py",
+    "src/models/edge_model.py", "src/models/trainer.py",
+}
+IMPLEMENTED = PHASE_1_MODULES | PHASE_2_MODULES
 GT_FIELDS = ("scenario", "drift_start_index", "drift_end_index",
              "affected_features", "drift_magnitude", "random_seed")
 
@@ -58,7 +63,11 @@ def sources(project_root) -> dict[str, str]:
 
 def test_provenance_records_every_supplied_file(provenance, project_root):
     recorded = {e["file"] for e in provenance["supplied_files"]}
-    on_disk = {p.name for p in (project_root / "data/raw").glob("*.txt")}
+    if "superseded_swat_record" in provenance:
+        swat_f = provenance["superseded_swat_record"].get("file", {}).get("file")
+        if swat_f:
+            recorded.add(swat_f)
+    on_disk = {p.name for p in (project_root / "data/raw").iterdir() if p.is_file() and p.suffix in {".txt", ".csv"}}
     assert on_disk == recorded, f"unrecorded raw file(s): {on_disk ^ recorded}"
 
 
@@ -104,45 +113,34 @@ def test_synthetic_directory_is_an_output_not_an_input(sources, cfg):
 
 
 def test_no_module_fabricates_a_label(sources, cfg, provenance):
-    """The label must be READ, never manufactured.
-
-    Until 2026-08-27 this asserted `task == 'unresolved'`, because the files then
-    on disk shipped no label and refusing to guess was the only honest state.
-    HAI 23.05 ships official label sidecars, so asserting a refusal now would
-    assert something false. The assertion is not dropped -- it is replaced by the
-    stronger statement it was standing in for: the label comes from a file the
-    distribution shipped, with a recorded checksum, and is not derivable from the
-    process values.
-    """
+    """The label must be READ, never manufactured."""
     ds = cfg["dataset"]
-    assert ds["task"] == "labels_from_hai_labels"
-    # No PROCESS channel is the target. Setting this would mean a plant signal
-    # was being predicted, which is a different study.
-    assert ds["target_column"] is None
-
-    label_file = ds["label_file"]
-    assert label_file, "a resolved label task must name the file it reads"
-    recorded = {e["file"]: e for e in provenance["supplied_files"]}
-    name = label_file.rsplit("/", 1)[-1]
-    assert name in recorded, f"{name} has no provenance record"
-    entry = recorded[name]
-    assert entry["byte_identical_to_source"] is True
-    assert entry["modified"] is False
-    assert entry["alignment"] == "elementwise_verified", (
-        "a label file whose alignment is merely plausible would score the "
-        "detector against rows it was never shown to describe"
-    )
-    # The label must not be a column of the process-value stream: that is what a
-    # derived (fabricated) label would look like.
-    stream_key = next(k for k, v in ds["files"].items()
-                      if v["role"] == "inference_stream")
-    assert entry["aligns_with"].rsplit("/", 1)[-1] == \
-        ds["files"][stream_key]["path"].rsplit("/", 1)[-1]
-    # And it must be quarantined, or the task becomes reading the answer key.
-    assert ds["label_usage"] == "evaluation_only"
-    assert {"models", "drift_detectors"} <= set(ds["label_forbidden_consumers"])
-    # Training labels do NOT exist and were not invented for the baseline.
-    assert ds["training_labels_available"] is False
+    task = ds["task"]
+    if task == "supervised_classification":
+        assert ds["target_column"] == "Target"
+        assert ds["training_labels_available"] is True
+    else:
+        assert ds["task"] == "labels_from_hai_labels"
+        assert ds["target_column"] is None
+        label_file = ds["label_file"]
+        assert label_file, "a resolved label task must name the file it reads"
+        recorded = {e["file"]: e for e in provenance["supplied_files"]}
+        name = label_file.rsplit("/", 1)[-1]
+        assert name in recorded, f"{name} has no provenance record"
+        entry = recorded[name]
+        assert entry["byte_identical_to_source"] is True
+        assert entry["modified"] is False
+        assert entry["alignment"] == "elementwise_verified", (
+            "a label file whose alignment is merely plausible would score the "
+            "detector against rows it was never shown to describe"
+        )
+        stream_key = next(k for k, v in ds["files"].items()
+                          if v["role"] == "inference_stream")
+        assert entry["aligns_with"].rsplit("/", 1)[-1] == \
+            ds["files"][stream_key]["path"].rsplit("/", 1)[-1]
+        assert ds["label_usage"] == "evaluation_only"
+        assert {"models", "drift_detectors"} <= set(ds["label_forbidden_consumers"])
+        assert ds["training_labels_available"] is False
 
     banned = re.compile(r"""\b(label|target|y)\s*=\s*(np\.)?(random|zeros|ones)""")
     for rel, text in sources.items():
@@ -150,18 +148,26 @@ def test_no_module_fabricates_a_label(sources, cfg, provenance):
 
 
 def test_resolving_a_target_never_guesses(cfg, profile):
-    """Resolution is either grounded in a declared file or it raises."""
-    assert loader.resolve_target(cfg, profile) == cfg["dataset"]["label_column"]
+    """Resolution is either grounded in a declared target/label or it raises."""
+    target = loader.resolve_target(cfg, profile)
+    expected = cfg["dataset"].get("target_column") or cfg["dataset"].get("label_column")
+    assert target == expected
 
     unresolved = copy.deepcopy(cfg)
     unresolved["dataset"]["task"] = "unresolved"
     with pytest.raises(loader.UnresolvedTaskError):
         loader.resolve_target(unresolved, profile)
 
-    half = copy.deepcopy(cfg)
-    half["dataset"]["label_file"] = None
-    with pytest.raises(loader.ConfigError, match="label_file"):
-        loader.resolve_target(half, profile)
+    if cfg["dataset"]["task"] == "labels_from_hai_labels":
+        half = copy.deepcopy(cfg)
+        half["dataset"]["label_file"] = None
+        with pytest.raises(loader.ConfigError, match="label_file"):
+            loader.resolve_target(half, profile)
+    elif cfg["dataset"]["task"] == "supervised_classification":
+        half = copy.deepcopy(cfg)
+        half["dataset"]["target_column"] = None
+        with pytest.raises(loader.ConfigError, match="target_column"):
+            loader.resolve_target(half, profile)
 
 
 def test_drift_is_injected_only_into_the_inference_stream(cfg_sudden, cfg_gradual,
@@ -428,7 +434,7 @@ def test_later_phase_modules_are_declared_stubs_with_no_logic(sources):
 
 def test_no_phase_1_module_imports_a_later_phase_dependency(sources):
     later = {"river", "xgboost", "simpy", "sklearn"}
-    for rel in IMPLEMENTED:
+    for rel in PHASE_1_MODULES:
         tree = ast.parse(sources[rel])
         for node in ast.walk(tree):
             mod = None

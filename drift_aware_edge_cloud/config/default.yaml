@@ -121,30 +121,9 @@ dataset:
   # object, so it gets a different section.
   #
   # LEAKAGE: evaluation-only. See the OFFICIAL-LABEL QUARANTINE block below.
-  labels:
-    test1:
-      path: data/raw/label-test1.txt
-      aligns_with: test1
-      role: inference_labels
-      description: >
-        Official HAI attack labels for test1. Evaluation ground truth only;
-        never an inference-time input. Separate from the controlled
-        synthetic-drift ground truth, which lives in data/synthetic/.
-      rows: 54000                  # VERIFIED
-      time_range: ["2022-08-12 16:00:01", "2022-08-13 07:00:00"]
-      label_column: label
-      classes: [0, 1]
-      # VERIFIED 2026-08-27 by audit_alignment.py, 6/6 checks:
-      #   row counts equal (54,000 == 54,000)
-      #   timestamps match ELEMENTWISE, row i to row i, all 54,000 rows
-      #   timestamp sets identical; label stamps unique -> joinable key
-      #   0 missing labels; 2 classes {0, 1}
-      #   class distribution 0: 51,019 (94.4796%), 1: 2,981 (5.5204%)
-      #   14 contiguous positive-class episodes (attack runs, not scatter)
-      class_distribution: {0: 51019, 1: 2981}
-      positive_rate: 0.055204
-      positive_episodes: 14
-      alignment: elementwise_verified
+  # For WUSTL-IIoT-2021, ground truth targets are embedded in the dataset itself
+  # (Target column). No external label sidecar is required.
+  labels: {}
 
   # --- RESERVED, NOT REACHABLE BY THE LOADER --------------------------------
   # Declared for provenance and chronology only. These keys are NOT in
@@ -226,21 +205,17 @@ dataset:
   strip_value_whitespace: true
 
   # --- Time ----------------------------------------------------------------
+  stream_semantics: flow_level
+  window_unit: observations
   timestamp_column: "StartTime"
   timestamp_format: "%Y-%m-%d %H:%M:%S"
-  expected_sampling_interval_s: 1
+  expected_sampling_interval_s: 0
 
   require_monotonic_timestamps: true
   ordering:
     sort_by_timestamp: true
     tie_breaker_columns: [SrcAddr, DstAddr, Sport, Dport, Proto, sIpId, dIpId]
-  # VERIFIED: all four process-value streams (train1, train2, test1, test2) are
-  # perfectly regular -- 0 gaps, 0 duplicate timestamps, 0 missing cells, exact
-  # 1 Hz, monotonic. label-test1.txt matches that grid exactly. label-test2.txt
-  # does NOT: it is minute-resolution with 226,559 duplicate stamps, which is why
-  # test2 is reserved rather than active. The gap machinery is retained for
-  # robustness but is not expected to trigger on the active files.
-  max_gap_s_before_new_block: 2
+  max_gap_s_before_new_block: 60
 
   # --- Target --------------------------------------------------------------
   # HISTORY (preserved, superseded 2026-08-27):
@@ -318,7 +293,7 @@ dataset:
   features:
     # null = every column except timestamp/label/target, minus exclusions.
     include: null
-    exclude: [Traffic, StartTime, LastTime, RunTime, SrcAddr, DstAddr, Sport, Dport, sIpId, dIpId]
+    exclude: [Target, Traffic, StartTime, LastTime, RunTime, SrcAddr, DstAddr, Sport, Dport, Proto, sIpId, dIpId]
 
     # Zero-variance columns carry no information. Dropped by CONFIG, never by a
     # hard-coded drop in source.
@@ -327,35 +302,14 @@ dataset:
     # whole stream.
     drop_zero_variance: true
 
-    # VERIFIED: 20 columns are zero-variance in ALL THREE files. Reference only
-    # -- the loader must re-measure on the configured baseline rather than
-    # trusting this list.
+    # Measured on train1: 0 columns are zero-variance.
     known_zero_variance_all_files: []
 
-    # --- HAI-SPECIFIC LEAKAGE TRAP (VERIFIED) ------------------------------
-    # HAI exposes command/feedback sibling pairs: <TAG>D is the commanded
-    # setpoint, <TAG>Z the measured position. They track each other almost
-    # exactly. Using one as a feature while predicting the other would leak the
-    # answer and produce a meaningless near-perfect score -- the same failure
-    # that invalidated the SWaT actuator target.
-    #
-    # Enforced only once a PROCESS COLUMN is chosen as the target. Resolving the
-    # task to `labels_from_hai_labels` leaves target_column null -- the target
-    # lives in a separate label file -- so `exclude_target_sibling` currently has
-    # no target whose sibling it could exclude and is a no-op. The trap is kept
-    # armed because any later switch to a process-column target reactivates it.
-    command_feedback_pairs:
-      P1_FCV01: [P1_FCV01D, P1_FCV01Z]
-      P1_FCV02: [P1_FCV02D, P1_FCV02Z]
-      P1_FCV03: [P1_FCV03D, P1_FCV03Z]
-      P1_LCV01: [P1_LCV01D, P1_LCV01Z]
-      P1_PCV01: [P1_PCV01D, P1_PCV01Z]
-      P1_PCV02: [P1_PCV02D, P1_PCV02Z]
-    exclude_target_sibling: true
+    command_feedback_pairs: {}
+    exclude_target_sibling: false
 
-    # Process groups, for group-scoped drift injection.
-    # VERIFIED counts: P1=37, P2=24, P3=7, P4=11, x100*=7.
-    process_group_prefixes: [P1_, P2_, P3_, P4_, x100]
+    # Process groups: not applicable to network flow features
+    process_group_prefixes: []
 
     # Column type groups. Critical for drift injection: a continuous offset
     # applied to a discrete state variable produces physically impossible
@@ -494,6 +448,7 @@ preprocessing:
   windowing:
     # WUSTL flow-level stream: these are COUNTS OF FLOW OBSERVATIONS, never
     # seconds. Same-timestamp flows are retained as distinct observations.
+    window_unit: observations
     window_size: 50
     step_size: 10
 

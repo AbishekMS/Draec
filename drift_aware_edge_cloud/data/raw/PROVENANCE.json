@@ -62,6 +62,49 @@
  },
  "supplied_files": [
   {
+   "file": "wustl_iiot_2021.csv",
+   "role": "active_dataset_wustl",
+   "config_key": "dataset.files",
+   "provenance": "WUSTL-IIoT-2021 dataset CSV, Washington University in St. Louis, flow-level IIoT event stream.",
+   "sha256": "f897b24578cc6fdeb3e7a0e9ff63efd5bbdc926a545abbda725e0dbb348c6bca",
+   "size_bytes": 409800698,
+   "byte_identical_to_source": true,
+   "source_modified": false,
+   "modified": false,
+   "rows": 1194464,
+   "columns": 49,
+   "time_range": [
+    "2019-08-19 09:46:03",
+    "2019-08-19 16:48:11"
+   ],
+   "target_column": "Target",
+   "target_distribution": {
+    "0": 1107448,
+    "1": 87016
+   },
+   "causal_splits": {
+    "train": {
+     "rows": 304166,
+     "time_range": ["2019-08-19 09:46:03", "2019-08-19 11:29:48"],
+     "normal": 295926,
+     "attack": 8240
+    },
+    "val": {
+     "rows": 265685,
+     "time_range": ["2019-08-19 11:29:49", "2019-08-19 13:07:36"],
+     "normal": 187380,
+     "attack": 78305
+    },
+    "test": {
+     "rows": 624613,
+     "time_range": ["2019-08-19 13:07:37", "2019-08-19 16:48:11"],
+     "normal": 624142,
+     "attack": 471
+    }
+   },
+   "usage_restriction": "train2 partition is NOT usable as baseline training data. Validation role only."
+  },
+  {
    "file": "hai-train1.txt",
    "role": "baseline_train",
    "config_key": "dataset.files.train1",

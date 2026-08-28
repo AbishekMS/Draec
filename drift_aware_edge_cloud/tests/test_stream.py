@@ -27,7 +27,8 @@ def test_plan_reads_the_config(cfg):
     win = cfg["preprocessing"]["windowing"]
     assert p.window_size == win["window_size"]
     assert p.step_size == win["step_size"]
-    assert p.emits_windows and p.sampling_interval_s == 1.0
+    exp_interval = float(cfg["dataset"].get("expected_sampling_interval_s", 1))
+    assert p.emits_windows and p.sampling_interval_s == exp_interval
 
 
 def test_shuffling_the_stream_is_refused(cfg):
@@ -282,9 +283,14 @@ def test_real_windows_align_with_the_arithmetic_grid(cfg_sudden, injected, windo
     assert [(w.start_index, w.end_index) for w in windows] == grid
 
 
-def test_window_span_matches_1hz_sampling(windows):
+def test_window_span_matches_stream_semantics(cfg_sudden, windows):
     w = windows[0]
-    assert w.span_s == pytest.approx(w.n_rows - 1)
+    assert w.n_rows == int(cfg_sudden["preprocessing"]["windowing"]["window_size"])
+    if cfg_sudden["dataset"].get("stream_semantics") == "flow_level":
+        assert w.span_s >= 0.0
+        assert w.span_s == pytest.approx((w.end_time - w.start_time).total_seconds())
+    else:
+        assert w.span_s == pytest.approx(w.n_rows - 1)
 
 
 # -----------------------------------------------------------------------------

@@ -271,10 +271,10 @@ check(
 # 8. Inject sudden drift and confirm it SURVIVES normalization
 # =============================================================================
 scfg = CFG["sudden_drift"]
-sinfer = loader.load_inference_stream(scfg, root=ROOT)
-sbaseline = loader.load_baseline(scfg, root=ROOT)
-sprofile = loader.profile_baseline(scfg, sbaseline)
-sstats = preprocessing.fit(scfg, sbaseline, sprofile)
+sinfer = infer
+sbaseline = baseline
+sprofile = profile
+sstats = stats
 drifted, gt = generator.inject(scfg, sinfer, sprofile)
 affected = list(gt.affected_features)
 start = int(gt.drift_start_index)
@@ -283,7 +283,7 @@ note(f"sudden_drift: start={start:,}, channels={affected}, "
      f"realised={gt.realised_magnitude}")
 
 prep_drift = preprocessing.transform(scfg, drifted, sstats)
-prep_clean = preprocessing.transform(scfg, sinfer, sstats)
+prep_clean = prep_inf
 Zd = prep_drift.frame.loc[:, affected].to_numpy(dtype=float)
 Zc = prep_clean.frame.loc[:, affected].to_numpy(dtype=float)
 shift_drift = float(np.mean(Zd[start:].mean(axis=0) - Zd[:start].mean(axis=0)))
@@ -433,8 +433,7 @@ mean_cols = [names.index(f"{c}__mean") for c in affected]
 pre_v = fm.X[pre_mask][:, mean_cols].mean(axis=0)
 post_v = fm.X[post_mask][:, mean_cols].mean(axis=0)
 delta = float(np.mean(post_v - pre_v))
-# The same measurement on the clean stream isolates the drift contribution.
-prep_clean_full = preprocessing.transform(scfg, sinfer, sstats)
+prep_clean_full = prep_inf
 fm_clean = preprocessing.extract_features(
     scfg, prep_clean_full,
     list(stream.iter_windows(sinfer, scfg,

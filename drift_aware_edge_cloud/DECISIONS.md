@@ -749,6 +749,83 @@ records the first while only execution establishes the second — which is why t
 state was re-derived by running everything rather than by reading what was left
 behind.
 
+## D-020 · 2026-08-28 · decision · Migration from HAI to WUSTL-IIoT-2021 as Active Dataset
+
+**Context.** The user directed migrating the active dataset from HAI 23.05 to WUSTL-IIoT-2021 (`data/raw/wustl_iiot_2021.csv`, 409,800,698 bytes, SHA-256 `f897b24578cc6fdeb3e7a0e9ff63efd5bbdc926a545abbda725e0dbb348c6bca`), while preserving HAI records as historical provenance.
+
+**Why.** WUSTL-IIoT-2021 provides real network traffic in industrial IoT SCADA systems with embedded multi-class / binary attack labels (`Target`: 0=normal, 1=attack), eliminating reliance on external sidecars for supervised classification.
+
+**Audited Dataset Semantics and Rigorous Safeguards:**
+* **Flow-level Event Stream:** WUSTL is a flow-level event stream (`stream_semantics: flow_level`), not a continuous time-series sampled at fixed seconds. Equal timestamps share `modal_interval_s: 0.0`.
+* **Deterministic Tie-Breaking:** With 25,267 unique `StartTime` timestamps and 1,169,197 duplicates, ordering is strictly defined by chronological `StartTime` followed by a deterministic tie-breaker tuple: `['SrcAddr', 'DstAddr', 'Sport', 'Dport', 'Proto', 'sIpId', 'dIpId']`.
+* **Tie-Breaker Column Quarantine:** All 7 tie-breaker columns are strictly excluded from model feature extraction and drift generation.
+* **Causal Three-Way Partitions:**
+  - `train1` (baseline training): `09:46:03` to `11:29:48`, 304,166 rows (295,926 normal, 8,240 attack).
+  - `train2` (validation / post-baseline): `11:29:49` to `13:07:36`, 265,685 rows (187,380 normal, 78,305 attack).
+  - `test1` (inference stream): `13:07:37` to `16:48:11`, 624,613 rows (624,142 normal, 471 attack).
+* **Feature Schema:** Total 49 columns. 12 excluded (5 metadata: `Target`, `Traffic`, `StartTime`, `LastTime`, `RunTime` + 7 tie-breakers). Exactly 37 model features (30 continuous, 7 discrete). 0 zero-variance features on `train1`.
+* **Observation Windowing:** Size 50, step 10 on 624,613 rows yields `(624,613 - 50) // 10 + 1 = 62,457` windows; remainder `(624,613 - 50) % 10 = 3` trailing rows dropped. Feature matrix is `62,457 x 194`.
+* **Memory Optimization:** Chunked partition loading (chunksize 200,000) maintains RAM under 200 MB per partition, preventing array allocation exhaustion on Windows VM without changing any scientific semantics.
+
+**Verification.** All verification harnesses pass cleanly: `verify_step2.py` (10/10), `verify_step3.py` (13/13), `verify_step4.py` (15/15), `verify_step5.py` (12/12), `pytest` (228 passed, 2 skipped, 0 failed).
+
+---
+
+## E-010 · 2026-08-28 · error+fix · Superseded file check and dataset premise updates in unit test suite
+
+**What happened.** Initial pytest run after WUSTL migration had 4 failures:
+1. `test_integrity.py::test_provenance_records_every_supplied_file`: failed on unrecorded `attack.csv`.
+2. `test_loader.py::test_hai_label_task_requires_a_label_file`: failed because `cfg["dataset"]["label_file"]` is None for WUSTL, triggering the first assertion instead of the intended `label_column` check.
+3. `test_preprocessing.py::test_statistics_are_fitted_on_the_baseline_only`: asserted hard-coded 58 continuous / 8 discrete features from HAI instead of dynamic profile counts (30 continuous / 7 discrete for WUSTL).
+4. `test_stream.py::test_plan_reads_the_config`: asserted sampling interval 1.0s instead of expected 0.0s for flow-level streams.
+
+**Root cause.** Hard-coded HAI assumptions in test assertions and lack of inclusion of the superseded `attack.csv` (recorded under `superseded_swat_record` in `PROVENANCE.json`) in the raw file inventory check.
+
+**Fix.**
+1. Included `superseded_swat_record`'s file in `test_provenance_records_every_supplied_file`.
+2. Set an explicit dummy label file before checking `label_column` requirement and added `target_column` refusal assertion for `supervised_classification`.
+3. Tested `len(stats.continuous) == len(profile.continuous)` and `len(stats.discrete) == len(profile.discrete)`.
+4. Compared `sampling_interval_s` to `expected_sampling_interval_s` from config.
+
+## D-021 · 2026-08-28 · decision · Phase 2 Edge and Cloud Prediction Models Implementation
+
+**Context.** Phase 2 required building and verifying two supervised prediction models using the exact verified Phase 1 feature representation (37 features) from WUSTL-IIoT-2021:
+- Edge tier: River Hoeffding Tree Classifier (`river.tree.HoeffdingTreeClassifier`)
+- Cloud tier: XGBoost Classifier (`xgboost.XGBClassifier`)
+
+**Architectural Decisions & Invariants:**
+1. **Common Model Protocol (`src/models/base.py`):**
+   - Abstract base class `BaseModel` specifies: `fit(X, y)`, `predict(X)`, `predict_proba(X)`, `predict_one(x)`, `predict_proba_one(x)`, `get_info()`.
+   - Tracks `is_trained`, `n_features`, `feature_names`, `last_inference_time_s`, `mean_inference_time_per_sample_s`.
+   - Enforces feature dimension and column name alignment; raises `NotTrainedError` on inference before fitting and `InputDimensionError` on misaligned schemas.
+2. **Edge Model Implementation (`src/models/edge_model.py`):**
+   - Wraps River's `HoeffdingTreeClassifier`.
+   - Supports online/incremental learning via `learn_one(x, y)` and `learn_many(X, y)`.
+   - Provides low-latency single-observation (`predict_one`, `predict_proba_one`) and batch prediction (`predict`, `predict_proba`).
+   - Normalizes probabilities to ensure both classes `{0, 1}` exist and sum to 1.0.
+3. **Cloud Model Implementation (`src/models/cloud_model.py`):**
+   - Wraps `xgboost.XGBClassifier`.
+   - Seeded deterministically using `src.utils.seed.master_seed(config)`.
+   - Provides high-throughput vectorised batch prediction (`predict`, `predict_proba`) and single-observation wrappers (`predict_one`, `predict_proba_one`).
+4. **Causal Data Pipeline & Quarantine (`src/models/trainer.py`):**
+   - Strictly enforces causal partitions: model fitting is permitted ONLY on `baseline_train` (`train1`, 304,166 rows).
+   - Preprocessing statistics and profile are fitted on `baseline_train` only; evaluation data (`baseline_validation`, `inference_stream`) reuse frozen statistics.
+   - `Target` column is extracted causally as ground truth and strictly excluded from feature matrix $X$.
+   - All 11 metadata/tie-breaker columns (`Target`, `Traffic`, `StartTime`, `LastTime`, `RunTime`, `SrcAddr`, `DstAddr`, `Sport`, `Dport`, `Proto`, `sIpId`, `dIpId`) are checked and forbidden from entering $X$.
+   - Refuses training on `baseline_validation` or `inference_stream` with `CausalityError`.
+5. **Evaluation Metrics:**
+   - Evaluates Macro-F1 (primary metric under class imbalance), accuracy, macro-precision, macro-recall, and confusion matrix.
+
+**Verification.**
+- All Phase 1 harnesses remain 100% green:
+  - `verify_step2.py`: 10/10 PASS
+  - `verify_step3.py`: 13/13 PASS
+  - `verify_step4.py`: 15/15 PASS
+  - `verify_step5.py`: 12/12 PASS
+- Phase 2 verification harness `verify_phase2.py`: 12/12 PASS
+- Unit test suite `pytest`: all Phase 1 and Phase 2 tests pass (242 passed, 2 skipped, 0 failed).
+- Small smoke test executed on causal partitions without RAM bottlenecks.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.

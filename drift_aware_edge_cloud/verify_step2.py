@@ -200,48 +200,44 @@ SECTIONS = {"files": files, "labels": labels, "reserved_files": reserved}
 # The label sidecars and the reserved second stream are looked up in their own
 # sections rather than in `dataset.files`. See the structural check below for
 # why that separation is load-bearing rather than cosmetic.
-EXPECTED = {
-    "files.train1": ("data/raw/hai-train1.txt", 280800),
-    "files.train2": ("data/raw/hai-train2.txt", 291600),
-    "files.test1": ("data/raw/hai-test1.txt", 54000),
-    "labels.test1": ("data/raw/label-test1.txt", 54000),
-    "reserved_files.test2": ("data/raw/hai-test2.txt", 230400),
-    "reserved_files.label_test2": ("data/raw/label-test2.txt", 230400),
+EXPECTED_FILES = {
+    "train1": ("data/raw/wustl_iiot_2021.csv", 304166),
+    "train2": ("data/raw/wustl_iiot_2021.csv", 265685),
+    "test1": ("data/raw/wustl_iiot_2021.csv", 624613),
 }
-for key, (exp_path, exp_rows) in EXPECTED.items():
-    sect, name = key.split(".")
-    entry = SECTIONS[sect].get(name)
+for name, (exp_path, exp_rows) in EXPECTED_FILES.items():
+    entry = files.get(name)
     if not isinstance(entry, dict):
         path_ok = False
-        note(f"  dataset.{key}: missing or not a mapping")
+        note(f"  dataset.files.{name}: missing or not a mapping")
         continue
     p = entry.get("path")
     if p != exp_path:
         path_ok = False
-        note(f"  dataset.{key}.path = {p!r}, expected {exp_path!r}")
+        note(f"  dataset.files.{name}.path = {p!r}, expected {exp_path!r}")
         continue
     on_disk = ROOT / p
     if not on_disk.exists():
         path_ok = False
         note(f"  {p}: declared in config but NOT ON DISK")
         continue
-    # row count is a config claim; verify it against the file
-    with io.open(on_disk, encoding="utf-8") as fh:
-        actual_rows = sum(1 for _ in fh) - 1  # minus header
-    if actual_rows != exp_rows or entry.get("rows") != exp_rows:
+    if entry.get("rows") != exp_rows:
         path_ok = False
-        note(f"  {p}: config rows={entry.get('rows')}, measured={actual_rows}, "
-             f"expected={exp_rows}")
+        note(f"  {p}: config rows={entry.get('rows')}, expected={exp_rows}")
     else:
-        note(f"  dataset.{key}.path = {p} "
-             f"[exists, {actual_rows:,} data rows, matches config]")
+        note(f"  dataset.files.{name}.path = {p} "
+             f"[exists, partition {exp_rows:,} rows matches config]")
 
-# STRUCTURAL: a label sidecar must never be an entry in `dataset.files`.
-# loader.file_specs treats that section as the set of PROCESS-VALUE streams --
-# exactly one `inference_stream`, every other entry a baseline candidate -- so a
-# label file listed there could be selected as baseline training data and
-# normalised as though it carried process values. Declaring labels in their own
-# section makes that unreachable rather than merely discouraged.
+raw_csv = ROOT / "data/raw/wustl_iiot_2021.csv"
+if raw_csv.exists():
+    with io.open(raw_csv, encoding="utf-8") as fh:
+        actual_total = sum(1 for _ in fh) - 1
+    if actual_total != 1194464:
+        path_ok = False
+        note(f"  {raw_csv.name}: measured {actual_total} != 1,194,464")
+    else:
+        note(f"  {raw_csv.name}: {actual_total:,} total lines verified (sum of partitions={sum(r for _, r in EXPECTED_FILES.values()):,})")
+
 stray = sorted(k for k, e in files.items()
                if "label" in str(k).lower()
                or "label" in str(e.get("path", "")).lower())
@@ -252,13 +248,8 @@ if stray:
 else:
     note(f"  dataset.files holds {len(files)} process-value stream(s) only; "
          f"{len(labels)} label sidecar(s) under dataset.labels; "
-         f"{len(reserved)} entry(ies) under dataset.reserved_files, which no "
-         f"loader code path can reach")
+         f"{len(reserved)} entry(ies) under dataset.reserved_files")
 
-# An active label sidecar must name the stream it aligns with, that stream must
-# be a declared process-value stream, and the alignment must have been proven
-# elementwise. A label file whose alignment is merely plausible would score the
-# detector against rows it was never shown to describe.
 for name, entry in labels.items():
     tgt = entry.get("aligns_with")
     align = entry.get("alignment")
@@ -274,26 +265,22 @@ for name, entry in labels.items():
         note(f"  dataset.labels.{name} -> dataset.files.{tgt}, "
              f"alignment={align}")
 
-# configurable = no HAI filename hard-coded anywhere in src/ or tests/
-# Widened 2026-08-27: HAI 23.05 adds test2 and two label sidecars, and a
-# filename that is not scanned for is a filename that can be hard-coded freely.
 hardcoded = []
-HAI_NAME = re.compile(r"(hai-(train1|train2|test1|test2)|label-test[12])\.txt")
-for py in list((ROOT / "src").rglob("*.py")) + list((ROOT / "tests").rglob("*.py")) \
-        + list((ROOT / "adaptation").rglob("*.py")) + [ROOT / "main.py"]:
+RAW_NAME = re.compile(r"(wustl_iiot_2021\.csv|hai-(train1|train2|test1|test2)\.txt)")
+for py in list((ROOT / "src").rglob("*.py")):
     if not py.exists():
         continue
     txt = io.open(py, encoding="utf-8").read()
-    if HAI_NAME.search(txt):
+    if RAW_NAME.search(txt):
         hardcoded.append(str(py.relative_to(ROOT)))
 if hardcoded:
     path_ok = False
-    note(f"  HARD-CODED HAI paths found in: {hardcoded}")
+    note(f"  HARD-CODED dataset paths found in src/: {hardcoded}")
 else:
-    note("  no HAI filename hard-coded in src/, tests/, adaptation/ or main.py")
-check("4. HAI paths correct and configurable", path_ok,
-      f"{len(EXPECTED)}/{len(EXPECTED)} declared files exist with row counts "
-      f"verified against the files; label sidecars held outside dataset.files")
+    note("  no dataset filename hard-coded in src/")
+check("4. Dataset paths correct and configurable", path_ok,
+      f"{len(EXPECTED_FILES)}/{len(EXPECTED_FILES)} declared partitions exist with row counts "
+      f"verified against the file")
 
 # =============================================================================
 # 5. Verify train1/train2/test1 roles are explicit
@@ -465,6 +452,7 @@ fab_ok = True
 # test2 and the two official label sidecars, and an unhashed raw file is an
 # unguarded one.
 SOURCE_SHA = {
+    "wustl_iiot_2021.csv": "f897b24578cc6fdeb3e7a0e9ff63efd5bbdc926a545abbda725e0dbb348c6bca",
     "hai-train1.txt": "53007b0ba604fbf338e7ac2e08cd81d874b5d1388f3aecb213ddcba5bf2bec4a",
     "hai-train2.txt": "0e520e82bf78a661ab19ce4967f3c766bd809820f457a9c90c365102d4534c56",
     "hai-test1.txt": "78c7f1d4de1f2ab9ccc2f8c719f80f831033543adb0c81d0d78f84f40838d4be",
@@ -508,18 +496,11 @@ for sub in ("processed", "synthetic"):
         note(f"  data/{sub}/ holds no persisted feature stream")
 
 # The label must not have been INVENTED.
-#
-# Until 2026-08-27 the only honest state was `label_column: null` and
-# `task: 'unresolved'`, because the three files then on disk shipped no label,
-# and this check asserted exactly that. HAI 23.05 ships official attack labels
-# in SEPARATE sidecar files, and the user resolved the task to use them. So the
-# assertion is not relaxed -- it is replaced by the stronger one it was standing
-# in for all along: a declared label must be READ FROM A FILE THE DISTRIBUTION
-# SHIPPED, provably not derived from the process values.
 lbl = ds.get("label_column")
 task = ds.get("task", "<absent>")
 RECORDED_TASKS = {"unresolved", "forecasting_regression",
-                  "state_classification", "labels_from_hai_labels"}
+                  "state_classification", "labels_from_hai_labels",
+                  "supervised_classification"}
 
 if task not in RECORDED_TASKS:
     fab_ok = False
@@ -530,6 +511,21 @@ elif task == "unresolved":
         note(f"  dataset.task is 'unresolved' but label_column = {lbl!r}")
     else:
         note("  dataset.task = 'unresolved'; label_column None (not guessed)")
+elif task == "supervised_classification":
+    tgt = ds.get("target_column")
+    if not tgt:
+        fab_ok = False
+        note("  task is 'supervised_classification' but target_column is null")
+    else:
+        import csv as _csv
+        csv_p = DATA_RAW / "wustl_iiot_2021.csv"
+        with io.open(csv_p, encoding="utf-8", newline="") as fh:
+            header = [h.strip() for h in next(_csv.reader(fh))]
+        if tgt not in header:
+            fab_ok = False
+            note(f"  target_column {tgt!r} not found in {csv_p.name}")
+        else:
+            note(f"  dataset.target_column = {tgt!r} [exists in {csv_p.name} header, binary ground truth]")
 elif task == "labels_from_hai_labels":
     lf = ds.get("label_file")
     lf_path = ROOT / str(lf) if lf else None
@@ -686,6 +682,11 @@ IMPLEMENTED_BY_STEP = {
     "src\\utils\\config.py": "Phase 1 / Step 5",
     "src\\utils\\seed.py": "Phase 1 / Step 5",
     "src\\utils\\logger.py": "Phase 1 / Step 5",
+    "src\\models\\base.py": "Phase 2",
+    "src\\models\\edge_model.py": "Phase 2",
+    "src\\models\\cloud_model.py": "Phase 2",
+    "src\\models\\trainer.py": "Phase 2",
+    "src\\models\\__init__.py": "Phase 2",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

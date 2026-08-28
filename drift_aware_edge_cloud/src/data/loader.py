@@ -339,7 +339,12 @@ def resolve_baseline_keys(config: Mapping[str, Any]) -> tuple[str, ...]:
 # -----------------------------------------------------------------------------
 
 
-def _read_frame(spec: FileSpec, ds: Mapping[str, Any], nrows: int | None) -> pd.DataFrame:
+def _read_frame(
+    spec: FileSpec,
+    ds: Mapping[str, Any],
+    nrows: int | None,
+    selection_time_range: Sequence[str] | None = None,
+) -> pd.DataFrame:
     fmt = str(ds.get("format", "csv")).lower()
     if fmt != "csv":
         raise ConfigError(
@@ -350,14 +355,50 @@ def _read_frame(spec: FileSpec, ds: Mapping[str, Any], nrows: int | None) -> pd.
         raise SchemaError(f"{spec.key}: file not found at {spec.path}")
 
     ts_col = str(ds["timestamp_column"])
+    sep = str(ds.get("delimiter", ","))
+    strip_cols = bool(ds.get("strip_column_whitespace", True))
+    strip_val = bool(ds.get("strip_value_whitespace", True))
+
+    if selection_time_range:
+        lo, hi = str(selection_time_range[0]), str(selection_time_range[1])
+        chunks = []
+        for chunk in pd.read_csv(
+            spec.path,
+            sep=sep,
+            chunksize=200_000,
+            dtype={ts_col: "string"},
+            engine="c",
+        ):
+            if strip_cols:
+                chunk.columns = [str(c).strip() for c in chunk.columns]
+            st = chunk[ts_col]
+            if strip_val:
+                st = st.str.strip()
+            mask = (st >= lo) & (st <= hi)
+            if mask.any():
+                chunks.append(chunk.loc[mask])
+        if chunks:
+            raw = pd.concat(chunks, ignore_index=True)
+        else:
+            raw = pd.read_csv(
+                spec.path,
+                sep=sep,
+                nrows=0,
+                dtype={ts_col: "string"},
+                engine="c",
+            )
+            if strip_cols:
+                raw.columns = [str(c).strip() for c in raw.columns]
+        return raw
+
     raw = pd.read_csv(
         spec.path,
-        sep=str(ds.get("delimiter", ",")),
+        sep=sep,
         nrows=nrows,
         dtype={ts_col: "string"},   # parse the time axis explicitly, not by guess
         engine="c",
     )
-    if ds.get("strip_column_whitespace", True):
+    if strip_cols:
         raw.columns = [str(c).strip() for c in raw.columns]
     return raw
 
@@ -380,10 +421,10 @@ def _order_and_select(raw: pd.DataFrame, ds: Mapping[str, Any], key: str) -> pd.
         raise SchemaError(f"{key}: ordering column(s) absent from the raw file: {missing}")
     entry = _section(ds, "files").get(key) or {}
     selected = entry.get("selection_time_range")
-    if selected:
-        ts = pd.to_datetime(raw[ts_col], format=str(ds["timestamp_format"]), errors="coerce")
-        lo, hi = pd.Timestamp(selected[0]), pd.Timestamp(selected[1])
-        raw = raw.loc[(ts >= lo) & (ts <= hi)].reset_index(drop=True)
+    if selected and len(raw) > 0 and (raw[ts_col].min() < selected[0] or raw[ts_col].max() > selected[1]):
+        st = raw[ts_col]
+        lo, hi = str(selected[0]), str(selected[1])
+        raw = raw.loc[(st >= lo) & (st <= hi)].reset_index(drop=True)
     if order.get("sort_by_timestamp", False):
         raw = raw.sort_values([ts_col, *tie], kind="mergesort", ignore_index=True)
     return raw
@@ -476,7 +517,8 @@ def load_file(
     # A flow-level time range must be selected after the complete file has been
     # ordered; a file-order head would be an acausal, shuffled pseudo-split.
     entry = _section(ds, "files").get(key) or {}
-    raw = _read_frame(spec, ds, None if entry.get("selection_time_range") else max_rows)
+    sel_range = entry.get("selection_time_range")
+    raw = _read_frame(spec, ds, nrows=max_rows if not sel_range else None, selection_time_range=sel_range)
     raw = _order_and_select(raw, ds, key)
     if max_rows is not None:
         raw = raw.iloc[:max_rows].reset_index(drop=True)
@@ -510,7 +552,8 @@ def load_file(
             f"{report_time.n_duplicate_timestamps:,} duplicate timestamps"
         )
     expected_interval = float(ds.get("expected_sampling_interval_s", 1))
-    if report_time.modal_interval_s != expected_interval:
+    stream_sem = str(ds.get("stream_semantics", "time_series"))
+    if stream_sem != "flow_level" and report_time.modal_interval_s != expected_interval:
         findings.append(
             f"modal sampling interval is {report_time.modal_interval_s:g}s, "
             f"config expects {expected_interval:g}s"

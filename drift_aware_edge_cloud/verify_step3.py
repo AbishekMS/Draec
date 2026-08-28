@@ -111,19 +111,19 @@ note(f"  {b0.key}: {t.summary()}")
 base_ok = (
     len(baseline) == 1
     and b0.key == "train1"
-    and r.n_rows == 280_800
+    and r.n_rows == 304_166
     and r.n_missing_cells == 0
     and r.row_count_matches_config is True
     and r.time_range_matches_config is True
     and t.monotonic_increasing
-    and t.n_duplicate_timestamps == 0
-    and t.modal_interval_s == 1.0
+    and t.n_duplicate_timestamps == 297_940
+    and t.modal_interval_s == 0.0
     and t.n_gaps == 0
     and t.n_blocks == 1
     and not r.non_numeric_columns
 )
 check("2. Baseline train1 loads; VERIFIED properties re-measured", base_ok,
-      f"280,800 rows, 0 missing, exact 1 Hz, {t.n_blocks} contiguity block, "
+      f"304,166 rows, 0 missing, modal interval 0.0s (flow_level), {t.n_blocks} contiguity block, "
       f"causal single-file baseline")
 
 # =============================================================================
@@ -139,14 +139,14 @@ note(f"  schema identical across train1/test1: {len(columns)} columns, same orde
 infer_ok = (
     infer.key == "test1"
     and infer.role == loader.INFERENCE_ROLE
-    and ir.n_rows == 54_000
+    and ir.n_rows == 624_613
     and ir.n_missing_cells == 0
     and ir.time_axis.n_gaps == 0
     and ir.time_axis.n_blocks == 1
-    and len(columns) == ir.n_columns
+    and len(columns) == ir.n_columns == 37
 )
 check("3. Inference stream test1 loads; schema matches baseline exactly", infer_ok,
-      f"54,000 rows, {len(columns)} shared columns, 1 block")
+      f"624,613 rows, {len(columns)} shared columns, 1 block")
 
 # =============================================================================
 # 4. Causality is enforced, not documented
@@ -186,18 +186,18 @@ except loader.CausalityError:
 #   (d) and a task claiming official labels with no label_file still refuses,
 #       so the resolution cannot be half-declared.
 target = loader.resolve_target(d)
-declared_label = d["dataset"]["label_column"]
+declared_label = d["dataset"].get("target_column") or d["dataset"].get("label_column")
 if target != declared_label:
     causal_ok = False
     note(f"  FAIL: resolve_target returned {target!r}, expected the declared "
-         f"label column {declared_label!r}")
+         f"target/label column {declared_label!r}")
 elif target in set(columns):
     causal_ok = False
-    note(f"  FAIL: target {target!r} is also a process-value column -- that "
+    note(f"  FAIL: target {target!r} is also a feature column -- that "
          f"would be a derived label, not the official one")
 else:
-    note(f"  resolve_target -> {target!r}, read from the official label sidecar; "
-         f"absent from the {len(columns)} process-value columns (not derived)")
+    note(f"  resolve_target -> {target!r}, read from dataset; "
+         f"absent from the {len(columns)} feature columns (not derived)")
 
 unresolved = copy.deepcopy(d)
 unresolved["dataset"]["task"] = "unresolved"
@@ -210,15 +210,16 @@ except loader.UnresolvedTaskError:
          "(no label fabricated)")
 
 half = copy.deepcopy(d)
-half["dataset"]["label_file"] = None
+half["dataset"]["target_column"] = None
+half["dataset"]["label_column"] = None
 try:
     loader.resolve_target(half)
     causal_ok = False
-    note("  FAIL: resolve_target accepted 'labels_from_hai_labels' with no "
-         "label_file")
+    note("  FAIL: resolve_target accepted 'supervised_classification' with no "
+         "target_column")
 except loader.ConfigError:
-    note("  resolve_target refuses 'labels_from_hai_labels' without a "
-         "label_file (the label must come from a real shipped file)")
+    note("  resolve_target refuses 'supervised_classification' without a "
+         "target_column (the target must be explicitly declared)")
 
 check("4. Leakage/causality guards fire: acausal baseline, inference-derived "
       "sigma, half-declared or unresolved target", causal_ok,
@@ -240,19 +241,20 @@ note("  top_variance(5): " + ", ".join(
     f"{c} (sigma={profile.sigma(c):.4g})" for c in top5))
 
 profile_ok = (
-    profile.n_rows == 280_800
-    and zv["measured_n"] == 20
+    profile.n_rows == 304_166
+    and zv["measured_n"] == 0
     and not zv["declared_but_not_measured"]
     and not zv["measured_but_not_declared"]
-    and len(profile.continuous) == 58
-    and len(profile.feature_names) == 66
+    and len(profile.continuous) == 30
+    and len(profile.discrete) == 7
+    and len(profile.feature_names) == 37
     and len(profile.continuous) + len(profile.discrete) == len(profile.feature_names)
     and profile.top_variance(5) == top5           # deterministic on repeat
     and all(profile.sigma(c) > 0 for c in profile.continuous)
 )
 check("5. Baseline profile matches independently measured PROVENANCE figures",
       profile_ok,
-      f"20/20 zero-variance columns agree exactly; 58 continuous + "
+      f"0/0 zero-variance columns agree exactly; 30 continuous + "
       f"{len(profile.discrete)} discrete features; top_variance deterministic")
 
 # =============================================================================
@@ -273,18 +275,18 @@ if not (st_none is None and en_none is None and s_none.max() == 0.0):
 note(f"  none    : all {N:,} rows at magnitude 0.0, start=None (control condition)")
 
 s_sud, st_sud, en_sud, sum_sud = sched(CFG["sudden_drift"])
-exp_sud = (st_sud == 27_000 and en_sud == 54_000
-           and s_sud[26_999] == 0.0 and s_sud[27_000] == 2.0
-           and int((s_sud > 0).sum()) == 27_000)
+exp_sud = (st_sud == 312_306 and en_sud == 624_613
+           and s_sud[312_305] == 0.0 and s_sud[312_306] == 2.0
+           and int((s_sud > 0).sum()) == 312_307)
 sched_ok &= exp_sud
 note(f"  sudden  : step 0 -> 2.0 sigma at row {st_sud:,} "
-     f"({int((s_sud > 0).sum()):,} drifted rows)   expected 27,000 -> {exp_sud}")
+     f"({int((s_sud > 0).sum()):,} drifted rows)   expected 312,306 -> {exp_sud}")
 
 s_gra, st_gra, en_gra, sum_gra = sched(CFG["gradual_drift"])
-exp_gra = (st_gra == 21_600 and sum_gra["ramp_end"] == 32_400
-           and sum_gra["ramp_rows"] == 10_800
-           and s_gra[21_599] == 0.0 and 0 < s_gra[21_600] < 2.0
-           and abs(s_gra[32_399] - 2.0) < 1e-12 and s_gra[53_999] == 2.0
+exp_gra = (st_gra == 249_845 and sum_gra["ramp_end"] == 374_768
+           and sum_gra["ramp_rows"] == 124_923
+           and s_gra[249_844] == 0.0 and 0 < s_gra[249_845] < 2.0
+           and abs(s_gra[374_767] - 2.0) < 1e-12 and s_gra[624_612] == 2.0
            and bool(np.all(np.diff(s_gra) >= -1e-15)))
 sched_ok &= exp_gra
 note(f"  gradual : ramp rows {st_gra:,} -> {sum_gra['ramp_end']:,} "
@@ -294,27 +296,27 @@ note(f"  gradual : ramp rows {st_gra:,} -> {sum_gra['ramp_end']:,} "
 s_str, st_str, en_str, sum_str = sched(CFG["stress_test"])
 levels = sorted({round(float(v), 6) for v in np.unique(s_str) if v > 0})
 plateaus = sum_str["plateaus"]
-exp_str = (st_str == 18_900 and len(plateaus) == 5
+exp_str = (st_str == 218_615 and len(plateaus) == 5
            and levels == [0.6, 1.2, 1.8, 2.4, 3.0]
-           and plateaus[0]["from"] == 18_900 and plateaus[-1]["to"] == 54_000
-           and all(p["to"] - p["from"] == 7_020 for p in plateaus))
+           and plateaus[0]["from"] == 218_615 and plateaus[-1]["to"] == 624_613
+           and all(81_198 <= p["to"] - p["from"] <= 81_201 for p in plateaus))
 sched_ok &= exp_str
-note(f"  stress  : 5 plateaus of {plateaus[0]['to'] - plateaus[0]['from']:,} rows "
+note(f"  stress  : 5 plateaus of ~{plateaus[0]['to'] - plateaus[0]['from']:,} rows "
      f"from row {st_str:,}, levels {levels} sigma -> {exp_str}")
 
 rec = copy.deepcopy(CFG["default"])
 rec["drift"].update(scenario="recurring", start_fraction=0.2, magnitude=2.0)
 s_rec, st_rec, en_rec, sum_rec = sched(rec)
 segs = sum_rec["drifted_segments"]
-exp_rec = (len(segs) == 2 and segs[0] == (10_800, 18_900)
-           and segs[1] == (27_000, 35_100)
-           and s_rec[20_000] == 0.0 and s_rec[11_000] == 2.0)
+exp_rec = (len(segs) == 2 and segs[0] == (124_923, 218_615)
+           and segs[1] == (312_307, 405_999)
+           and s_rec[250_000] == 0.0 and s_rec[130_000] == 2.0)
 sched_ok &= exp_rec
 note(f"  recurring: drifted segments {segs}, clean gap between them -> {exp_rec}")
 
 check("6. Drift schedules resolve to the exact row indices the configs document",
       bool(sched_ok),
-      "sudden@27000, gradual ramp 21600->32400, stress 5x7020 from 18900, "
+      "sudden@312306, gradual ramp 249845->374768, stress 5 plateaus from 218615, "
       "recurring 2 cycles with a clean interval")
 
 # =============================================================================
@@ -365,13 +367,13 @@ def values_equal(lo: int, hi: int) -> bool:
     )
 
 
-pre_identical = values_equal(0, 27_000)
+pre_identical = values_equal(0, 312_306)
 promoted = [c for c in drifted.frame.columns
             if drifted.frame[c].dtype != infer.frame[c].dtype]
 post_differs = all(
     not np.array_equal(
-        drifted.frame[c].to_numpy(dtype=float)[27_000:],
-        infer.frame[c].to_numpy(dtype=float)[27_000:],
+        drifted.frame[c].to_numpy(dtype=float)[312_306:],
+        infer.frame[c].to_numpy(dtype=float)[312_306:],
     )
     for c in gt.affected_features
 )
@@ -379,14 +381,14 @@ untouched_post = [
     c for c in drifted.frame.columns
     if c not in gt.affected_features
     and not np.array_equal(
-        drifted.frame[c].to_numpy(dtype=float)[27_000:],
-        infer.frame[c].to_numpy(dtype=float)[27_000:],
+        drifted.frame[c].to_numpy(dtype=float)[312_306:],
+        infer.frame[c].to_numpy(dtype=float)[312_306:],
     )
 ]
-note(f"  rows 0..26,999 value-identical to raw HAI in all 86 channels: "
+note(f"  rows 0..312,305 value-identical to raw WUSTL in all channels: "
      f"{pre_identical}")
 note(f"  dtype promoted int64->float64 (values unchanged): {sorted(promoted)}")
-note(f"  rows 27,000..53,999 differ in every affected channel: {post_differs}; "
+note(f"  rows 312,306..624,612 differ in every affected channel: {post_differs}; "
      f"unaffected channels changed there: {len(untouched_post)}")
 note(f"  requested {gt.drift_magnitude} sigma; realised per channel:")
 for c, v in gt.realised_magnitude.items():
@@ -402,10 +404,10 @@ for n_ in gt.notes:
 shift_ok = (
     pre_identical and post_differs and not untouched_post
     and len(gt.realised_magnitude) == 5
-    and gt.n_drifted_rows == 27_000
+    and gt.n_drifted_rows == 312_307
     and all(v > 0 for v in gt.realised_magnitude.values())
 )
-check("8. Pre-drift region value-identical to raw HAI; realised magnitude "
+check("8. Pre-drift region value-identical to raw WUSTL; realised magnitude "
       "measured after clipping", shift_ok,
       f"realised mean {ss.get('realised_mean_magnitude_sigma', 0):.4f} sigma of "
       f"{ss.get('requested_mean_magnitude_sigma', 0):.1f} requested "
@@ -414,28 +416,33 @@ check("8. Pre-drift region value-identical to raw HAI; realised magnitude "
 # =============================================================================
 # 9. Determinism, and the seed actually matters
 # =============================================================================
+import gc
 d2, gt2 = generator.inject(CFG["sudden_drift"], infer, profile)
 same = d2.frame.equals(drifted.frame) and gt2.realised_magnitude == gt.realised_magnitude
+del d2, gt2
+gc.collect()
 
 noisy = copy.deepcopy(CFG["sudden_drift"])
 noisy["drift"]["mechanism"] = "noise"
 n_a, gta = generator.inject(noisy, infer, profile)
 n_b, gtb = generator.inject(noisy, infer, profile)
 noise_reproducible = n_a.frame.equals(n_b.frame)
+del n_b, gtb
+gc.collect()
 
 reseeded = copy.deepcopy(noisy)
 reseeded["reproducibility"]["random_seed"] = int(
     noisy["reproducibility"]["random_seed"]) + 1
 n_c, gtc = generator.inject(reseeded, infer, profile)
 seed_matters = not n_c.frame.equals(n_a.frame)
+del n_a, n_c, gta, gtc
+gc.collect()
 
 note(f"  offset run twice, identical frames: {same}")
 note(f"  stochastic 'noise' mechanism reproducible under the same seed: "
      f"{noise_reproducible}")
 note(f"  changing reproducibility.random_seed changes the realisation: "
      f"{seed_matters}")
-note(f"  noise realised (std of injected delta / baseline sigma): " + ", ".join(
-    f"{c}={v:.3f}" for c, v in list(gta.realised_magnitude.items())[:3]) + " ...")
 check("9. Generator is deterministic under a fixed seed and responsive to it",
       bool(same and noise_reproducible and seed_matters),
       "same seed -> identical bytes; different seed -> different realisation")
@@ -464,7 +471,7 @@ quarantine_ok = (
     and not extra_attrs
     and sidecar.parent.name == "synthetic"
     and sorted(payload) == sorted(gt_fields)
-    and payload["drift_start_index"] == 27_000
+    and payload["drift_start_index"] == 312_306
 )
 check("10. Ground truth quarantined: absent from the frame, present only in the "
       "sidecar", quarantine_ok,
@@ -509,18 +516,19 @@ note("  " + cs.stats.summary().replace("\n", "\n  "))
 
 stream_ok = (
     shuffle_refused and order_ok
-    and len(seen_starts) == n_expected == 5_396
+    and len(seen_starts) == n_expected == 62_457
     and seen_starts == sorted(seen_starts)
     and seen_starts == [s for s, _ in expected_grid]
     and seen_ids == list(range(len(seen_ids)))
-    and cs.stats.trailing_rows_dropped == 0
+    and cs.stats.trailing_rows_dropped == (N - p.window_size) % p.step_size == 3
     and cs.stats.n_windows_skipped_noncontiguous == 0
     and cs.stats.n_windows_skipped_invalid == 0
     and cs.stats.n_windows_emitted == len(seen_starts)
 )
 check("11. Streaming is chronological, refuses shuffling, and emits the exact "
       "window grid", stream_ok,
-      f"5,396 windows over 54,000 rows, strictly increasing, 0 dropped rows")
+      f"62,457 windows over 624,613 rows, strictly increasing, "
+      f"{cs.stats.trailing_rows_dropped} trailing rows dropped")
 
 # =============================================================================
 # 12. No lookahead, and the drift onset lands in the predicted window
@@ -564,22 +572,22 @@ note(f"  clean and drifted streams yield the same grid: "
      f"{clean_starts == seen_starts}")
 
 look_ok &= (
-    first_post == 2_700
-    and expected_grid[first_post][0] == 27_000
-    and len(straddling) == 4
+    first_post == 31_231
+    and expected_grid[first_post][0] == 312_310
+    and len(straddling) == 5
     and clean_starts == seen_starts
 )
 check("12. No-lookahead guards fire; ground truth maps onto the window grid",
       bool(look_ok),
-      "onset row 27,000 -> window 2,700; 4 straddling windows identified for "
+      "onset row 312,306 -> window 31,231; 5 straddling windows identified for "
       "exclusion; clean and drifted streams share one code path")
 
 # =============================================================================
 # 13. The other two scenario configs inject end-to-end on the real stream
 # =============================================================================
 scen_ok = True
-for name, expect_n, expect_start in (("gradual_drift", 5, 21_600),
-                                     ("stress_test", 10, 18_900)):
+for name, expect_n, expect_start in (("gradual_drift", 5, 249_845),
+                                     ("stress_test", 10, 218_615)):
     ds_, gt_ = generator.inject(CFG[name], infer, profile)
     s_ = gt_.schedule_summary
     pre_ok = all(
@@ -603,6 +611,8 @@ for name, expect_n, expect_start in (("gradual_drift", 5, 21_600),
          f"realised_mean={s_.get('realised_mean_magnitude_sigma', float('nan')):.4f} "
          f"of {s_.get('requested_mean_magnitude_sigma', float('nan')):.4f} sigma "
          f"({att:.1%})  pre-drift untouched={pre_ok} -> {ok}")
+    del ds_, gt_
+    gc.collect()
 
 check("13. gradual_drift and stress_test inject end-to-end on the real stream",
       bool(scen_ok),

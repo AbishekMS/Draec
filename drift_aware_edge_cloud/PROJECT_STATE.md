@@ -1,7 +1,7 @@
 # PROJECT_STATE — generated, do not edit by hand
 
-Generated `2026-08-27 10:17:18Z` by `state_report.py` from 68 code, config
-and provenance files. Surface fingerprint **`ff89c7a9f8750154`**.
+Generated `2026-08-27 20:26:04Z` by `state_report.py` from 71 code, config
+and provenance files. Surface fingerprint **`4812a67059294958`**.
 
 Regenerate after any change:
 
@@ -27,7 +27,7 @@ script runs no test and no model. For pass counts, run the commands in
 
 ## Implementation status
 
-Read from the `Status :` header of 33 source modules: **7 IMPLEMENTED**, **26 not**.
+Read from the `Status :` header of 34 source modules: **11 IMPLEMENTED**, **23 not**.
 
 - **Phase 1 / Step 3** — complete
   - [x] `src/data/generator.py` — IMPLEMENTED
@@ -39,10 +39,11 @@ Read from the `Status :` header of 33 source modules: **7 IMPLEMENTED**, **26 no
   - [x] `src/utils/config.py` — IMPLEMENTED
   - [x] `src/utils/logger.py` — IMPLEMENTED
   - [x] `src/utils/seed.py` — IMPLEMENTED
-- **Phase 2** — not started
-  - [ ] `src/models/cloud_model.py` — NOT IMPLEMENTED
-  - [ ] `src/models/edge_model.py` — NOT IMPLEMENTED
-  - [ ] `src/models/trainer.py` — NOT IMPLEMENTED
+- **Phase 2** — complete
+  - [x] `src/models/base.py` — IMPLEMENTED
+  - [x] `src/models/cloud_model.py` — IMPLEMENTED
+  - [x] `src/models/edge_model.py` — IMPLEMENTED
+  - [x] `src/models/trainer.py` — IMPLEMENTED
 - **Phase 3** — not started
   - [ ] `src/drift/adwin_detector.py` — NOT IMPLEMENTED
   - [ ] `src/drift/persistence.py` — NOT IMPLEMENTED
@@ -80,7 +81,8 @@ Configuration keys deliberately left unset rather than guessed:
 
 | Key | Value |
 |---|---|
-| `dataset.target_column` | `null` |
+| `dataset.label_column` | `null` |
+| `dataset.label_file` | `null` |
 
 ### TASK_UNRESOLVED — `dataset.task`  ·  **RESOLVED**
 
@@ -157,10 +159,10 @@ Ground-truth consumers, from `ground_truth`:
 
 Configurations present: `default`, `gradual_drift`, `stress_test`, `sudden_drift`
 
-- `default` — resolves and validates, fingerprint `05ceb3f8a677`
-- `gradual_drift` — resolves and validates, fingerprint `d3057993a6af`
-- `stress_test` — resolves and validates, fingerprint `0cb45d07bf20`
-- `sudden_drift` — resolves and validates, fingerprint `4798f50890d7`
+- `default` — resolves and validates, fingerprint `f8cec4ef7bf3`
+- `gradual_drift` — resolves and validates, fingerprint `f72068124fc1`
+- `stress_test` — resolves and validates, fingerprint `fbc3cc9229e8`
+- `sudden_drift` — resolves and validates, fingerprint `0db5bda4c62e`
 
 ## Raw data
 
@@ -171,6 +173,7 @@ reach. The file names are never written in Python.
 
 | File | Recorded role | Size on disk | Matches record | Modified flag |
 |---|---|---|---|---|
+| `wustl_iiot_2021.csv` | active_dataset_wustl | 409,800,698 | yes | False |
 | `hai-train1.txt` | baseline_train | 162,418,984 | yes | False |
 | `hai-train2.txt` | baseline_validation | 169,121,615 | yes | False |
 | `hai-test1.txt` | inference_stream | 31,255,559 | yes | False |
@@ -209,10 +212,11 @@ Test suite on disk, parsed with `ast`:
 | `tests/test_integrity.py` | 27 | 1 |
 | `tests/test_loader.py` | 33 | 0 |
 | `tests/test_logger.py` | 16 | 0 |
+| `tests/test_models.py` | 14 | 0 |
 | `tests/test_preprocessing.py` | 40 | 0 |
 | `tests/test_seed.py` | 17 | 0 |
 | `tests/test_stream.py` | 28 | 0 |
-| **total declared** | **210** | **1** |
+| **total declared** | **224** | **1** |
 
 Declared functions are not the collected count: `pytest` expands parametrised cases, so the number it reports is higher. The collected/passed count is only knowable by running it.
 
@@ -246,4 +250,4 @@ Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.ex
 
 ---
 
-_End of generated report. Fingerprint `ff89c7a9f8750154`; `state_report.py --check` fails if the tree has moved since._
+_End of generated report. Fingerprint `4812a67059294958`; `state_report.py --check` fails if the tree has moved since._
