@@ -346,14 +346,17 @@ def _validate(
         tol = float(v.get("range_tolerance_sigma", 6.0))
         lo, hi = stats.valid_range(tol)
         cols = [c for c in frame.columns if c in stats.columns]
-        below = frame[cols].lt(lo[cols], axis=1)
-        above = frame[cols].gt(hi[cols], axis=1)
-        viol = (below | above).fillna(False)
+        f_arr = frame[cols].to_numpy(dtype=float, copy=False)
+        lo_arr = lo[cols].to_numpy(dtype=float)
+        hi_arr = hi[cols].to_numpy(dtype=float)
+        below = (f_arr < lo_arr)
+        above = (f_arr > hi_arr)
+        viol = np.nan_to_num(below | above, copy=False, nan=0.0)
         per_col = viol.sum(axis=0)
         q.n_range_violations_by_column = {
-            c: int(n) for c, n in per_col.items() if int(n) > 0
+            c: int(per_col[idx]) for idx, c in enumerate(cols) if int(per_col[idx]) > 0
         }
-        row_viol = viol.any(axis=1).to_numpy()
+        row_viol = viol.any(axis=1)
         q.range_violation |= row_viol
         q.validation_failed |= row_viol
         q.notes.append(
@@ -504,10 +507,14 @@ def _flag_outliers(
             f"PROVENANCE.json finding_degenerate_outlier_bounds."
         )
 
-    flagged = (sub.lt(lo[cols], axis=1) | sub.gt(hi[cols], axis=1)).fillna(False)
+    sub_arr = sub.to_numpy(dtype=float, copy=False)
+    lo_arr = lo[cols].to_numpy(dtype=float)
+    hi_arr = hi[cols].to_numpy(dtype=float)
+    flagged = (sub_arr < lo_arr) | (sub_arr > hi_arr)
+    flagged = np.nan_to_num(flagged, copy=False, nan=0.0)
     per_col = flagged.sum(axis=0)
-    q.n_outliers_by_column = {c: int(n) for c, n in per_col.items() if int(n) > 0}
-    q.outlier |= flagged.any(axis=1).to_numpy()
+    q.n_outliers_by_column = {c: int(per_col[idx]) for idx, c in enumerate(cols) if int(per_col[idx]) > 0}
+    q.outlier |= flagged.any(axis=1)
 
     n_rows_flagged = int(q.outlier.sum())
     q.notes.append(
@@ -516,12 +523,12 @@ def _flag_outliers(
         f"{action}"
     )
     if degenerate:
-        keep = [c for c in cols if c not in set(degenerate)]
-        alt = flagged[keep].any(axis=1) if keep else pd.Series(False, index=frame.index)
+        keep_idx = [idx for idx, c in enumerate(cols) if c not in set(degenerate)]
+        alt = flagged[:, keep_idx].any(axis=1) if keep_idx else np.zeros(len(frame), dtype=bool)
         q.notes.append(
             f"same measurement EXCLUDING the {len(degenerate)} degenerate "
             f"channel(s): {int(alt.sum()):,} row(s) = {float(alt.mean()):.4%} "
-            f"over {len(keep)} channel(s) -- reported for interpretation only; "
+            f"over {len(keep_idx)} channel(s) -- reported for interpretation only; "
             f"the flags above are unmodified"
         )
     if action == "clip":
@@ -615,9 +622,11 @@ def _normalize(
             )
         lo = stats.minimum[cols].to_numpy(dtype=float)
         hi = stats.maximum[cols].to_numpy(dtype=float)
-        Z = (X - lo) / np.maximum(hi - lo, eps)
+        Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
+        np.subtract(X, lo, out=Z)
+        np.divide(Z, np.maximum(hi - lo, eps), out=Z)
         q.notes.append("minmax normalization against frozen baseline range")
-        return pd.DataFrame(Z, columns=cols, index=frame.index)
+        return pd.DataFrame(Z, columns=cols, index=frame.index, copy=False)
     if method == "none":
         return frame
     if method != "zscore":
@@ -629,12 +638,14 @@ def _normalize(
     if adaptation == "frozen_after_baseline":
         mu = stats.mean[cols].to_numpy(dtype=float)
         sd = stats.std[cols].to_numpy(dtype=float)
-        Z = (X - mu) / np.maximum(sd, eps)
+        Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
+        np.subtract(X, mu, out=Z)
+        np.divide(Z, np.maximum(sd, eps), out=Z)
         q.notes.append(
             "z-score against FROZEN baseline statistics: an injected mean shift "
             "survives normalization and stays visible to the drift detector"
         )
-        return pd.DataFrame(Z, columns=cols, index=frame.index)
+        return pd.DataFrame(Z, columns=cols, index=frame.index, copy=False)
 
     if adaptation == "running":
         # Seeded cumulative statistics via raw moments. Row t uses rows <= t of
@@ -642,18 +653,23 @@ def _normalize(
         n0 = float(stats.n_rows)
         mu0 = stats.mean[cols].to_numpy(dtype=float)
         var0 = np.square(stats.std[cols].to_numpy(dtype=float))
-        counts = n0 + np.arange(1, X.shape[0] + 1, dtype=float)[:, None]
-        sum_x = n0 * mu0 + np.cumsum(np.nan_to_num(X), axis=0)
-        sum_x2 = n0 * (var0 + mu0**2) + np.cumsum(np.nan_to_num(X) ** 2, axis=0)
-        mu = sum_x / counts
-        var = np.maximum(sum_x2 / counts - mu**2, 0.0)
-        Z = (X - mu) / np.maximum(np.sqrt(var), eps)
+        counts = n0 + np.arange(1, X.shape[0] + 1, dtype=float)
+        Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
+
+        for j in range(len(cols)):
+            col_x = np.nan_to_num(X[:, j], copy=True)
+            sum_x = n0 * mu0[j] + np.cumsum(col_x)
+            sum_x2 = n0 * (var0[j] + mu0[j]**2) + np.cumsum(col_x ** 2)
+            mu_j = sum_x / counts
+            var_j = np.maximum(sum_x2 / counts - mu_j**2, 0.0)
+            Z[:, j] = (col_x - mu_j) / np.maximum(np.sqrt(var_j), eps)
+
         q.notes.append(
             f"z-score against RUNNING statistics seeded with {int(n0):,} "
             f"baseline rows: causal, but cumulative adaptation slowly absorbs "
             f"drift -- ablation only"
         )
-        return pd.DataFrame(Z, columns=cols, index=frame.index)
+        return pd.DataFrame(Z, columns=cols, index=frame.index, copy=False)
 
     # rolling
     w = int(n.get("rolling_window", 1000))
@@ -666,18 +682,23 @@ def _normalize(
             "config so BaselineStatistics.history_tail is populated"
         )
     hist = tail.loc[:, cols].to_numpy(dtype=float)
-    joined = np.vstack([hist, X])
-    dfj = pd.DataFrame(joined, columns=cols)
-    roll = dfj.rolling(w, min_periods=1)
-    mu = roll.mean().to_numpy()[len(hist):]
-    sd = roll.std(ddof=0).to_numpy()[len(hist):]
-    Z = (X - mu) / np.maximum(sd, eps)
+    Z = np.empty((len(frame), len(cols)), dtype=float, order="F")
+    n_hist = len(hist)
+
+    for j in range(len(cols)):
+        col_joined = np.concatenate([hist[:, j], X[:, j]])
+        s = pd.Series(col_joined)
+        roll = s.rolling(w, min_periods=1)
+        mu_j = roll.mean().to_numpy()[n_hist:]
+        sd_j = roll.std(ddof=0).to_numpy()[n_hist:]
+        Z[:, j] = (X[:, j] - mu_j) / np.maximum(sd_j, eps)
+
     q.notes.append(
         f"z-score against a {w}-row ROLLING window seeded with {len(hist):,} "
         f"baseline rows: backward-looking, but absorbs drift fastest of the "
         f"three modes -- ablation only"
     )
-    return pd.DataFrame(Z, columns=cols, index=frame.index)
+    return pd.DataFrame(Z, columns=cols, index=frame.index, copy=False)
 
 
 # =============================================================================
@@ -875,9 +896,17 @@ def extract_features(
     rng_flags = prepared.quality.range_violation
     valid = prepared.quality.valid
 
-    rows, ids, si, ei, nof, nrf, vf = [], [], [], [], [], [], []
+    n_windows = len(windows)
+    X = np.empty((n_windows, len(names)), dtype=float)
+    ids = np.empty(n_windows, dtype=int)
+    si_a = np.empty(n_windows, dtype=int)
+    ei_a = np.empty(n_windows, dtype=int)
+    nof = np.empty(n_windows, dtype=int)
+    nrf = np.empty(n_windows, dtype=int)
+    vf = np.empty(n_windows, dtype=float)
+
     slope_x: np.ndarray | None = None
-    for w in windows:
+    for i, w in enumerate(windows):
         s, e = w.start_index, w.end_index
         if slope_x is None or slope_x.shape[0] != (e - s):
             xs = np.arange(e - s, dtype=float)
@@ -887,22 +916,23 @@ def extract_features(
             parts.append(_window_block(Cn[s:e], cont_stats, slope_x))
         if disc_cols:
             parts.append(_discrete_block(Dn[s:e], disc_stats))
-        rows.append(np.concatenate(parts) if parts else np.zeros(0))
-        ids.append(w.window_id)
-        si.append(s)
-        ei.append(e)
-        nof.append(int(out_flags[s:e].sum()))
-        nrf.append(int(rng_flags[s:e].sum()))
-        vf.append(float(valid[s:e].mean()))
+        if parts:
+            if len(parts) > 1:
+                np.concatenate(parts, out=X[i])
+            else:
+                np.copyto(X[i], parts[0])
+        ids[i] = w.window_id
+        si_a[i] = s
+        ei_a[i] = e
+        nof[i] = int(out_flags[s:e].sum())
+        nrf[i] = int(rng_flags[s:e].sum())
+        vf[i] = float(valid[s:e].mean())
 
-    X = np.vstack(rows) if rows else np.zeros((0, len(names)))
     if X.shape[1] != len(names):
         raise PreprocessingError(
             f"feature matrix has {X.shape[1]} columns but {len(names)} names "
             f"were declared; the ordering contract is broken"
         )
-    si_a = np.asarray(si, dtype=int)
-    ei_a = np.asarray(ei, dtype=int)
     return FeatureMatrix(
         names=names,
         X=X,

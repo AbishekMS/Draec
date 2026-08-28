@@ -124,8 +124,7 @@ def test_validation_partition_is_causal_but_not_selected_for_fitting(cfg, projec
 
 def test_future_baseline_is_refused_even_when_constructed(cfg, project_root, infer):
     train2 = loader.load_file(cfg, "train2", root=project_root, max_rows=5_000)
-    future = copy.deepcopy(infer)
-    future = __import__('dataclasses').replace(future, role="baseline_train")
+    future = __import__('dataclasses').replace(infer, role="baseline_train")
     with pytest.raises(loader.CausalityError, match="acausal baseline"):
         loader.assert_causal_baseline([future], train2, cfg)
 

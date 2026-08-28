@@ -687,6 +687,10 @@ IMPLEMENTED_BY_STEP = {
     "src\\models\\cloud_model.py": "Phase 2",
     "src\\models\\trainer.py": "Phase 2",
     "src\\models\\__init__.py": "Phase 2",
+    "src\\drift\\adwin_detector.py": "Phase 3",
+    "src\\drift\\persistence.py": "Phase 3",
+    "src\\drift\\severity.py": "Phase 3",
+    "src\\drift\\__init__.py": "Phase 3",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

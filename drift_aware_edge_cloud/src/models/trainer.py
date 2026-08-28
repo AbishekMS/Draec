@@ -95,18 +95,31 @@ def extract_partition_labels(
     return y
 
 
+_CACHED_BASELINE_STATS: tuple[Any, Any] | None = None
+
+
+def _get_or_fit_baseline_stats(config: Mapping[str, Any], root: Path | str) -> tuple[Any, Any]:
+    global _CACHED_BASELINE_STATS
+    if _CACHED_BASELINE_STATS is None:
+        baseline = loader.load_baseline(config, root=root)
+        profile = loader.profile_baseline(config, baseline)
+        stats = preprocessing.fit(config, baseline, profile)
+        _CACHED_BASELINE_STATS = (profile, stats)
+    return _CACHED_BASELINE_STATS
+
+
 def load_causal_train_data(
     config: Mapping[str, Any],
     *,
     root: Path | str = ".",
     max_rows: int | None = None,
-    profile: BaselineProfile | None = None,
-    stats: BaselineStatistics | None = None,
-) -> tuple[pd.DataFrame, np.ndarray, BaselineStatistics, BaselineProfile]:
-    """Load causal baseline_train features and labels, fitting preprocessing statistics.
+    profile: Any | None = None,
+    stats: Any | None = None,
+) -> tuple[pd.DataFrame, np.ndarray, Any, Any]:
+    """Causally load and preprocess baseline training data for model fitting.
 
-    LEAKAGE GUARD:
-    - Preprocessing statistics are fitted ONLY on baseline_train.
+    Guarantees:
+    - Training data strictly comes from partition with role 'baseline_train'.
     - Features are normalized against frozen baseline statistics.
     - Target is strictly excluded from the feature matrix X.
     - Ordering tie-breakers and metadata columns are strictly excluded.
@@ -114,14 +127,9 @@ def load_causal_train_data(
     train_key = get_key_by_role(config, "baseline_train")
 
     if profile is None or stats is None:
-        # Load complete baseline partition to ensure legitimate profiling across all 37 features
-        baseline = loader.load_baseline(config, root=root)
-        profile = loader.profile_baseline(config, baseline)
-        stats = preprocessing.fit(config, baseline, profile)
-        train_file = next((b for b in baseline if b.key == train_key), baseline[0])
-    else:
-        # Re-use pre-fitted profile and stats
-        train_file = loader.load_file(config, train_key, root=root)
+        profile, stats = _get_or_fit_baseline_stats(config, root=root)
+
+    train_file = loader.load_file(config, train_key, root=root, max_rows=max_rows)
 
     if train_file.role != "baseline_train":
         raise CausalityError(
@@ -130,7 +138,7 @@ def load_causal_train_data(
 
     prep = preprocessing.transform(config, train_file, stats)
     X_train = prep.frame
-    y_train = extract_partition_labels(config, "baseline_train", root=root)
+    y_train = extract_partition_labels(config, "baseline_train", root=root, max_rows=max_rows)
 
     if max_rows is not None:
         X_train = X_train.iloc[:max_rows].reset_index(drop=True)

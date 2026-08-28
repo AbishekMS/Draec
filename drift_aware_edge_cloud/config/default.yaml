@@ -580,6 +580,26 @@ drift:
   # touching y.
   modify_labels: false
 
+  # --- Phase 3 Drift Detection ---------------------------------------------
+  detection:
+    adwin:
+      delta: 0.002           # ADWIN statistical confidence parameter
+      clock: 32              # check frequency (observations per check)
+      max_buckets: 5         # ADWIN bucket count
+      min_window_length: 5   # minimum observations before split check
+      grace_period: 10       # minimum warmup observations
+      monitored_signal: prediction_probability # prediction_probability (default) | uncertainty | prediction | prediction_error
+    persistence:
+      criterion: consecutive # consecutive | windowed_count
+      consecutive_threshold: 3 # K consecutive detections for persistence
+      window_size: 10        # T window observations (for windowed_count)
+      count_threshold: 3     # N detections in T (for windowed_count)
+    severity:
+      formula: relative_shift # relative_shift: D = min(1.0, abs(current_shift - baseline_mean) / max_shift)
+      baseline_mean: null    # null => computed causally from baseline_train
+      max_shift: null        # null => defaults to max(1.0 - baseline_mean, 1e-6)
+      smoothing_factor: 0.8  # EMA factor for smoothed_severity (0.0 = no smoothing)
+
 # -----------------------------------------------------------------------------
 # 6. GROUND TRUTH  (EVALUATION ONLY -- QUARANTINED)
 # -----------------------------------------------------------------------------

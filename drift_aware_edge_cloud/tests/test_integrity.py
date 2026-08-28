@@ -37,7 +37,11 @@ PHASE_2_MODULES = {
     "src/models/__init__.py", "src/models/base.py", "src/models/cloud_model.py",
     "src/models/edge_model.py", "src/models/trainer.py",
 }
-IMPLEMENTED = PHASE_1_MODULES | PHASE_2_MODULES
+PHASE_3_MODULES = {
+    "src/drift/__init__.py", "src/drift/adwin_detector.py",
+    "src/drift/persistence.py", "src/drift/severity.py",
+}
+IMPLEMENTED = PHASE_1_MODULES | PHASE_2_MODULES | PHASE_3_MODULES
 GT_FIELDS = ("scenario", "drift_start_index", "drift_end_index",
              "affected_features", "drift_magnitude", "random_seed")
 

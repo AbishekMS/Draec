@@ -1,7 +1,7 @@
 # PROJECT_STATE — generated, do not edit by hand
 
-Generated `2026-08-27 20:26:04Z` by `state_report.py` from 71 code, config
-and provenance files. Surface fingerprint **`4812a67059294958`**.
+Generated `2026-08-28 05:18:21Z` by `state_report.py` from 73 code, config
+and provenance files. Surface fingerprint **`4b366c67e82d8be8`**.
 
 Regenerate after any change:
 
@@ -27,7 +27,7 @@ script runs no test and no model. For pass counts, run the commands in
 
 ## Implementation status
 
-Read from the `Status :` header of 34 source modules: **11 IMPLEMENTED**, **23 not**.
+Read from the `Status :` header of 34 source modules: **14 IMPLEMENTED**, **20 not**.
 
 - **Phase 1 / Step 3** — complete
   - [x] `src/data/generator.py` — IMPLEMENTED
@@ -44,10 +44,10 @@ Read from the `Status :` header of 34 source modules: **11 IMPLEMENTED**, **23 n
   - [x] `src/models/cloud_model.py` — IMPLEMENTED
   - [x] `src/models/edge_model.py` — IMPLEMENTED
   - [x] `src/models/trainer.py` — IMPLEMENTED
-- **Phase 3** — not started
-  - [ ] `src/drift/adwin_detector.py` — NOT IMPLEMENTED
-  - [ ] `src/drift/persistence.py` — NOT IMPLEMENTED
-  - [ ] `src/drift/severity.py` — NOT IMPLEMENTED
+- **Phase 3** — complete
+  - [x] `src/drift/adwin_detector.py` — IMPLEMENTED
+  - [x] `src/drift/persistence.py` — IMPLEMENTED
+  - [x] `src/drift/severity.py` — IMPLEMENTED
 - **Phase 4** — not started
   - [ ] `src/reliability/estimator.py` — NOT IMPLEMENTED
 - **Phase 5** — not started
@@ -159,10 +159,10 @@ Ground-truth consumers, from `ground_truth`:
 
 Configurations present: `default`, `gradual_drift`, `stress_test`, `sudden_drift`
 
-- `default` — resolves and validates, fingerprint `f8cec4ef7bf3`
-- `gradual_drift` — resolves and validates, fingerprint `f72068124fc1`
-- `stress_test` — resolves and validates, fingerprint `fbc3cc9229e8`
-- `sudden_drift` — resolves and validates, fingerprint `0db5bda4c62e`
+- `default` — resolves and validates, fingerprint `2ea4e5332133`
+- `gradual_drift` — resolves and validates, fingerprint `6ae961b4e762`
+- `stress_test` — resolves and validates, fingerprint `c491f1565bd9`
+- `sudden_drift` — resolves and validates, fingerprint `c755e6778180`
 
 ## Raw data
 
@@ -208,6 +208,7 @@ Test suite on disk, parsed with `ast`:
 | Module | Test functions | Marked slow |
 |---|---|---|
 | `tests/test_config.py` | 18 | 0 |
+| `tests/test_drift.py` | 20 | 0 |
 | `tests/test_generator.py` | 31 | 0 |
 | `tests/test_integrity.py` | 27 | 1 |
 | `tests/test_loader.py` | 33 | 0 |
@@ -216,7 +217,7 @@ Test suite on disk, parsed with `ast`:
 | `tests/test_preprocessing.py` | 40 | 0 |
 | `tests/test_seed.py` | 17 | 0 |
 | `tests/test_stream.py` | 28 | 0 |
-| **total declared** | **224** | **1** |
+| **total declared** | **244** | **1** |
 
 Declared functions are not the collected count: `pytest` expands parametrised cases, so the number it reports is higher. The collected/passed count is only knowable by running it.
 
@@ -250,4 +251,4 @@ Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.ex
 
 ---
 
-_End of generated report. Fingerprint `4812a67059294958`; `state_report.py --check` fails if the tree has moved since._
+_End of generated report. Fingerprint `4b366c67e82d8be8`; `state_report.py --check` fails if the tree has moved since._

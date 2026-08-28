@@ -828,7 +828,48 @@ behind.
 
 ---
 
+## D-022 · 2026-08-28 · decision · Phase 3 Drift Detection Layer (ADWIN, Persistence, Severity)
+
+**Context.** Phase 3 requires detecting when the incoming stream experiences statistically meaningful change, tracking the persistence of the detected change, and quantifying its continuous severity $D \in [0, 1]$, without consuming future ground truth or labels.
+
+**Architectural Decisions & Invariants:**
+1. **Separation of Concerns:**
+   - **ADWIN (`src/drift/adwin_detector.py`):** Wraps River's `ADWIN`. Evaluates whether changes in the running mean of the monitored signal are statistically significant under Hoeffding bounds with confidence parameter $\delta=0.002$.
+   - **Persistence (`src/drift/persistence.py`):** Filters isolated transient alarms from sustained regime shifts using configurable criteria (`consecutive` streak threshold $K$ or `windowed_count` $N$ alarms in $T$ observations).
+   - **Severity (`src/drift/severity.py`):** Quantifies the magnitude of observed change into a continuous normalized metric $D \in [0, 1]$.
+   - **Pipeline (`src/drift/__init__.py`):** Integrates the three components into a causal streaming coordinator `DriftPipeline`.
+
+2. **Monitored Inference Signal:**
+   - Default monitored signal is `prediction_probability` ($P(\text{Target}=1 | x_t)$ from model inference).
+   - Supports `uncertainty` ($2 \cdot (1 - \max_k P(k))$), `prediction` ($\hat{y} \in \{0, 1\}$), and evaluation-only `prediction_error` (which requires explicit scalar inputs and never queries labels).
+   - Ground truth binary labels (`Target`) and synthetic drift sidecar metadata (`ground_truth.json`) are strictly evaluation-only and forbidden from entering the detector.
+
+3. **Drift Severity Formula & Distinction:**
+   - Raw severity is defined by the exact mathematical formula:
+     $$D = \min\left(1.0, \frac{|\text{current\_shift} - \text{baseline\_mean}|}{\text{max\_shift}}\right)$$
+     (with alternative `exponential`: $D = 1 - \exp(-\lambda \cdot |\text{current\_shift} - \text{baseline\_mean}|)$).
+   - `baseline_mean` is computed causally from `baseline_train` using `compute_baseline_signal_mean(model, X_baseline_train)` or configured. It is never estimated from validation or test data.
+   - `raw_severity` and `smoothed_severity` are strictly separated:
+     $$\text{smoothed\_severity}_t = \alpha \cdot \text{smoothed\_severity}_{t-1} + (1 - \alpha) \cdot \text{raw\_severity}_t$$
+     where $\alpha \in [0, 1)$ is the configurable smoothing factor.
+
+4. **Memory Optimization:**
+   - Preallocated 2D feature matrix in `src/data/preprocessing.py` (`extract_features`) replaced dynamic Python list accumulation of 62,457 small numpy arrays, eliminating heap fragmentation and `ArrayMemoryError` on 624k-row WUSTL streams without changing any calculation.
+
+**Verification.**
+- `verify_step2.py`: 10/10 PASS
+- `verify_step3.py`: 13/13 PASS
+- `verify_step4.py`: 15/15 PASS
+- `verify_step5.py`: 12/12 PASS
+- `verify_phase2.py`: 12/12 PASS
+- `verify_phase3.py`: 12/12 PASS
+- `pytest tests/test_drift.py`: 20/20 PASS
+- Handover contract passes with zero discrepancies.
+
+---
+
 <!-- Append new entries ABOVE this line, in ascending id order.
      Never edit or delete an existing entry; supersede it with a new one. -->
+
 
 
