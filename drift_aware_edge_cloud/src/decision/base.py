@@ -1,15 +1,16 @@
 """Drift-Aware Adaptive Edge-Cloud-Hybrid Orchestration for Non-Stationary IoT.
 
 Module   : src/decision/base.py
-Phase    : Phase 5
+Phase    : Phase 5 & 6
 Status   : IMPLEMENTED
 
-Base interface and data contracts for the DRAEC Decision Engine.
+Base interface and data contracts for the DRAEC Decision Engine and Execution Layer.
 Defines:
 - DecisionAction: action space {EDGE, CLOUD, HYBRID}
+- ExecutionStatus: execution status {SUCCESS, FALLBACK, FAILED}
 - DecisionInputs: causal runtime inputs (R_t, C_t, D_t, Q_t, index/time)
 - DecisionResult: structured output of the routing decision
-- ExecutionResult: structured outcome of minimal model execution
+- ExecutionResult: structured outcome of hardened model execution
 - BaseController: abstract controller interface
 - BaseDecisionEngine: abstract decision engine interface
 """
@@ -139,9 +140,38 @@ class DecisionResult:
             raise ValueError(f"reliability must be in [0, 1], got {self.reliability}")
 
 
+class ExecutionStatus(str, Enum):
+    """The execution status of an inference step in DRAEC.
+
+    SUCCESS:
+        Inference executed successfully on the selected primary path (Edge or Cloud)
+        or Hybrid without fallback.
+    FALLBACK:
+        Hybrid path executed Edge first, found confidence insufficient, and successfully
+        fell back to Cloud; Cloud provides the final prediction.
+    FAILED:
+        Inference failed due to validation, model, runtime, or fallback errors.
+    """
+
+    SUCCESS = "SUCCESS"
+    FALLBACK = "FALLBACK"
+    FAILED = "FAILED"
+
+    @classmethod
+    def from_str(cls, val: str | ExecutionStatus) -> ExecutionStatus:
+        """Parse status case-insensitively from string or enum."""
+        if isinstance(val, cls):
+            return val
+        s = str(val).strip().upper()
+        for member in cls:
+            if member.value == s:
+                return member
+        raise ValueError(f"Unknown status {val!r}; expected one of {[m.value for m in cls]}")
+
+
 @dataclass(frozen=True)
 class ExecutionResult:
-    """Structured outcome of minimal model execution under the chosen action.
+    """Structured outcome of model execution under the chosen action.
 
     Attributes
     ----------
@@ -149,34 +179,81 @@ class ExecutionResult:
         The underlying decision that guided this execution.
     action : DecisionAction
         The action executed ({EDGE, CLOUD, HYBRID}).
-    prediction : int
-        The final predicted class label in {0, 1}.
-    probabilities : dict[int, float]
-        The final predicted class probability distribution {0: p0, 1: p1}.
+    prediction : int | None
+        The final predicted class label in {0, 1} on success, or None on failure.
+    probabilities : dict[int, float] | None
+        The final predicted class probability distribution {0: p0, 1: p1} on success,
+        or None on failure.
     model_used : str
         Description of the model providing the final prediction
-        ('edge', 'cloud', 'hybrid_edge', 'hybrid_cloud').
+        ('edge', 'cloud', 'hybrid_edge', 'hybrid_cloud', 'none').
     inference_latency_s : float
         Measured wall-clock execution latency in seconds.
     cloud_fallback : bool
         True if Hybrid action evaluated Edge and fell back to Cloud.
+    success : bool
+        True if execution succeeded, False if any validation or execution failure occurred.
+    status : ExecutionStatus
+        Explicit execution status ({SUCCESS, FALLBACK, FAILED}).
+    edge_latency_s : float | None
+        Measured local software execution latency for Edge model, if executed.
+    cloud_latency_s : float | None
+        Measured local software execution latency for Cloud model, if executed.
+    hybrid_latency_s : float | None
+        Measured complete wall-clock duration for Hybrid path, if action was HYBRID.
+    error : str | None
+        Diagnostic failure error message if execution failed, else None.
+    observation_index : int | None
+        Observation index from decision or streaming sequence, if available.
+    timestamp : Any | None
+        Observation timestamp, if available.
     """
 
     decision: DecisionResult
     action: DecisionAction
-    prediction: int
-    probabilities: dict[int, float]
+    prediction: int | None
+    probabilities: dict[int, float] | None
     model_used: str
     inference_latency_s: float
     cloud_fallback: bool = False
+    success: bool = True
+    status: ExecutionStatus = ExecutionStatus.SUCCESS
+    edge_latency_s: float | None = None
+    cloud_latency_s: float | None = None
+    hybrid_latency_s: float | None = None
+    error: str | None = None
+    observation_index: int | None = None
+    timestamp: Any | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.action, DecisionAction):
             raise TypeError(f"action must be DecisionAction, got {type(self.action).__name__}")
-        if self.prediction not in (0, 1):
-            raise ValueError(f"prediction must be 0 or 1, got {self.prediction}")
-        if not isinstance(self.probabilities, Mapping):
-            raise TypeError("probabilities must be a mapping {class: prob}")
+
+        # Auto-align status if passed as string
+        if isinstance(self.status, str) and not isinstance(self.status, ExecutionStatus):
+            object.__setattr__(self, "status", ExecutionStatus.from_str(self.status))
+        elif not isinstance(self.status, ExecutionStatus):
+            raise TypeError(f"status must be ExecutionStatus, got {type(self.status).__name__}")
+
+        # Auto-align status if cloud_fallback is True and status is SUCCESS
+        if self.cloud_fallback and self.status == ExecutionStatus.SUCCESS:
+            object.__setattr__(self, "status", ExecutionStatus.FALLBACK)
+
+        # Auto-populate observation_index and timestamp from decision if None
+        if self.observation_index is None and self.decision is not None:
+            object.__setattr__(self, "observation_index", self.decision.observation_index)
+        if self.timestamp is None and self.decision is not None:
+            object.__setattr__(self, "timestamp", self.decision.timestamp)
+
+        if self.success:
+            if self.prediction not in (0, 1):
+                raise ValueError(f"prediction must be 0 or 1 on successful execution, got {self.prediction}")
+            if not isinstance(self.probabilities, Mapping):
+                raise TypeError("probabilities must be a mapping {class: prob} on successful execution")
+        else:
+            if self.status != ExecutionStatus.FAILED:
+                object.__setattr__(self, "status", ExecutionStatus.FAILED)
+
 
 
 class BaseController(abc.ABC):

@@ -947,6 +947,88 @@ behind.
 - `pytest tests/test_decision.py`: 28/28 PASS
 - Complete regression suite green.
 
+## D-025 · 2026-08-29 · decision · Phase 6 Hardened Execution Layer, Latency Measurement, and Failure Handling
+
+**Context.** Phase 6 hardens the execution layer between the DRAEC Decision Engine and the Phase 2 Edge and Cloud models. It establishes strict input/output validation, fine-grained wall-clock timing, explicit failure handling without prediction fabrication, and bounded telemetry, preserving the frozen Phase 4 reliability signal $R_t$ and Phase 5 decision engine hysteresis thresholds.
+
+**Architectural Formulations & Invariants:**
+1. **Execution Interface & Status:**
+   - Unified `ExecutionResult` and `ExecutionStatus` (`SUCCESS`, `FALLBACK`, `FAILED`).
+   - Backward-compatible with Phase 5 `ExecutionResult` fields (`decision`, `action`, `prediction`, `probabilities`, `model_used`, `inference_latency_s`, `cloud_fallback`), adding `success`, `status`, `edge_latency_s`, `cloud_latency_s`, `hybrid_latency_s`, `error`, `observation_index`, `timestamp`.
+
+2. **Causal Input & Output Validation:**
+   - `validate_input()`: Validates numeric finite values, shape, and expected dimensions. Rejects None, empty arrays, non-finite values, and strictly blocks forbidden leakage columns (`Target`, `ground_truth`, `Traffic`).
+   - `validate_output()`: Enforces binary label contract $\hat{y}_t \in \{0, 1\}$ and valid probability simplex $P_t(y) \in [0, 1]$ summing to $1.0 \pm 10^{-4}$ with finite values.
+
+3. **Fine-Grained Latency Measurement:**
+   - $T_{\text{edge}}$: Measured duration of Edge River Hoeffding Tree execution via `time.perf_counter()`.
+   - $T_{\text{cloud}}$: Measured duration of Cloud XGBoost execution via `time.perf_counter()`. Documented explicitly as local software execution latency, not network delay, packet transmission, or internet service latency.
+   - $T_{\text{hybrid}}$: Measured complete wall-clock duration of the entire Hybrid execution path via a dedicated timer covering Edge execution, confidence check, and conditional Cloud fallback. Component durations $T_{\text{edge}}$ and $T_{\text{cloud}}$ are tracked independently and never fabricated as $T_{\text{edge}} + T_{\text{cloud}}$.
+
+4. **Explicit Failure Semantics (No Fabrication):**
+   - Inference failures catch explicit hardware/software exceptions and return `success=False`, `status=ExecutionStatus.FAILED`, `prediction=None`, `probabilities=None`, and the error string. Never fabricates predictions on failure.
+   - **EDGE:** Edge succeeds $\implies$ `SUCCESS`; Edge fails $\implies$ `FAILED`.
+   - **CLOUD:** Cloud succeeds $\implies$ `SUCCESS`; Cloud fails $\implies$ `FAILED`.
+   - **HYBRID:**
+     - Edge fails $\implies$ `FAILED`.
+     - Edge succeeds and $C_{\text{edge}} \ge 0.60 \implies$ `SUCCESS` (`model_used="hybrid_edge"`, `cloud_fallback=False`).
+     - Edge succeeds, $C_{\text{edge}} < 0.60$, and Cloud succeeds $\implies$ `FALLBACK` (`model_used="hybrid_cloud"`, `cloud_fallback=True`).
+     - Edge succeeds, $C_{\text{edge}} < 0.60$, and Cloud fails $\implies$ `FAILED` (`cloud_fallback=True`, `prediction=None`).
+
+5. **Memory-Bounded Telemetry:**
+   - Streaming-safe telemetry buffer respecting `max_records` (default 10,000) using ring buffers / deques.
+   - Computes streaming min/max/mean latency statistics without storing unbounded history.
+
+6. **Scope Boundary:**
+   - Phase 6 only. No Phase 7 monitoring, Phase 8 physical deployment, Phase 9 adaptation/retraining, or Phase 10 statistical evaluation.
+
+**Verification.**
+- `verify_phase6.py`: 21/21 PASS
+- `pytest tests/test_execution.py`: 26/26 PASS
+- Full regression suite across Phases 1–5 passing.
+
+---
+
+### D-026: Phase 7 — DRAEC Model Management & Monitoring
+
+- **Date**: 2026-08-29
+- **Status**: DECIDED / IMPLEMENTED
+- **Phase**: Phase 7
+- **Scope**: Observability, Model-State Registry, and Telemetry Engine.
+
+**Context.**
+Following hardened execution in Phase 6, the DRAEC architecture requires a dedicated, causal observability layer answering: *"What is happening to the DRAEC system and its models over time?"* The layer must track model health, monitor incoming reliability and drift signals, trace routing decisions, record execution latencies, maintain bounded historical telemetry, and expose data-readiness for downstream Phase 10 evaluations without altering frozen Phase 1–6 components.
+
+**Decisions.**
+
+1. **Purely Observational Layer:**
+   - Phase 7 observes, records, and aggregates system state. It does NOT modify the frozen Phase 4 reliability formulation $R_t = f(C_t, E_t, D_t, Q_t)$, Phase 5 decision thresholds ($\tau_{\text{critical}}=0.30, \tau_{\text{cloud}}=0.50, \tau_{\text{return}}=0.70$), or Phase 6 two-level execution paths.
+   - It does NOT trigger automatic retraining, model switching, model parameter synchronization, or compression (strictly quarantined to Phase 9).
+   - It does NOT run comparative evaluation benchmarks or claim performance superiority (strictly quarantined to Phase 10).
+   - It does NOT perform physical deployment or MQTT networking (strictly quarantined to Phase 8).
+
+2. **Model Registry (`ModelRegistry`):**
+   - Implemented in `src/monitoring/registry.py`. Tracks Edge (`EdgeHoeffdingTree`) and Cloud (`CloudXGBoost`) models.
+   - Maintains `ModelMetadata` including `model_id`, `model_type`, `execution_location`, `model_version`, `status` (`ModelHealthStatus`), `feature_names`, `n_features`, execution counts, and last status/error.
+   - Strictly non-mutating: provides observational lifecycle tracking without weight updates.
+
+3. **Central Observability Engine (`DRAECMonitor` / `SystemMonitor`):**
+   - Implemented in `src/monitoring/monitor.py`.
+   - Ingests causal stream tuples $(t, \text{ReliabilityScore}, \text{drift\_status}, \text{DecisionResult}, \text{ExecutionResult})$.
+   - Distinguishes bounded recent history (ring buffer deque capped at `max_records`, default 10,000) from global cumulative stream statistics (total observations, routing counts, distribution %, hybrid fallback rate, execution success rate, streaming min/max/mean for $R_t, D_t, T_{\text{edge}}, T_{\text{cloud}}, T_{\text{hybrid}}$).
+   - Missing execution paths preserve `None` rather than fabricating zero values.
+
+4. **Non-Actionable Informational Alerts:**
+   - Tracks condition flags (`reliability_degraded`, `drift_active`, `execution_failure_detected`, `cloud_fallback_active`, `model_unavailable`) as observational telemetry only. No automated control intervention is permitted.
+
+5. **Phase 10 Data Readiness:**
+   - Implements `get_records_dataframe()` producing a stable 23-column schema supporting all future Phase 10 evaluation requirements (R_t over time, D_t over time, routing distribution, hybrid fallback rate, execution latency, and policy comparison).
+
+**Verification.**
+- `verify_phase7.py`: 24/24 PASS
+- `pytest tests/test_monitoring.py`: 27/27 PASS
+- Full regression suite across Phases 1–6 passing.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.

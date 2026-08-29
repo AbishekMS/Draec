@@ -621,7 +621,7 @@ check("8. No fabricated data or labels", fab_ok,
 phase_ok = True
 ALLOWED_SECTIONS = {
     "_extends", "meta", "reproducibility", "dataset", "split", "preprocessing",
-    "drift", "decision", "ground_truth", "streaming", "output", "reserved_for_later_phases",
+    "drift", "decision", "execution", "monitoring", "ground_truth", "streaming", "output", "reserved_for_later_phases",
 }
 # Names that would mean a later-phase component had been configured for real.
 LATER_PHASE_KEYS = re.compile(
@@ -697,6 +697,10 @@ IMPLEMENTED_BY_STEP = {
     "src\\decision\\base.py": "Phase 5",
     "src\\decision\\engine.py": "Phase 5",
     "src\\decision\\__init__.py": "Phase 5",
+    "src\\monitoring\\base.py": "Phase 7",
+    "src\\monitoring\\registry.py": "Phase 7",
+    "src\\monitoring\\monitor.py": "Phase 7",
+    "src\\monitoring\\__init__.py": "Phase 7",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

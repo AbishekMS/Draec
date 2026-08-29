@@ -9,3 +9,4 @@ data/raw/wustl_iiot_2021.csv
 .pytest_cache/git rm --cached drift_aware_edge_cloud/data/raw/hai-test2.txt
 __pycache__/
 *.pyc
+.pytest_cache/

@@ -635,6 +635,43 @@ decision:
     max_records: 10000
 
 # -----------------------------------------------------------------------------
+# 5c. HARDENED EXECUTION LAYER (PHASE 6)
+# -----------------------------------------------------------------------------
+execution:
+  validation:
+    enabled: true
+    check_finite: true
+    check_probabilities: true
+
+  timing:
+    enabled: true
+    timer: perf_counter
+
+  telemetry:
+    enabled: true
+    max_records: 10000
+
+  failure:
+    edge_policy: fail
+    cloud_policy: fail
+    hybrid_cloud_failure_policy: fail
+
+# -----------------------------------------------------------------------------
+# 5d. MODEL MANAGEMENT & MONITORING (PHASE 7)
+# -----------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  max_records: 10000
+  model_management: true
+  reliability: true
+  drift: true
+  decisions: true
+  execution: true
+  alerts:
+    reliability_degraded_threshold: 0.50
+    drift_active_threshold: 0.10
+
+# -----------------------------------------------------------------------------
 # 6. GROUND TRUTH  (EVALUATION ONLY -- QUARANTINED)
 # -----------------------------------------------------------------------------
 # The generator knows the true drift onset because it created it. That

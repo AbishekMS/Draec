@@ -56,6 +56,8 @@ KNOWN_SECTIONS = (
     "preprocessing",
     "drift",
     "decision",
+    "execution",
+    "monitoring",
     "ground_truth",
     "streaming",
     "output",

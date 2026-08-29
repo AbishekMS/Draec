@@ -49,9 +49,13 @@ PHASE_5_MODULES = {
     "src/decision/__init__.py", "src/decision/base.py",
     "src/decision/engine.py",
 }
+PHASE_7_MODULES = {
+    "src/monitoring/__init__.py", "src/monitoring/base.py",
+    "src/monitoring/registry.py", "src/monitoring/monitor.py",
+}
 IMPLEMENTED = (
     PHASE_1_MODULES | PHASE_2_MODULES | PHASE_3_MODULES |
-    PHASE_4_MODULES | PHASE_5_MODULES
+    PHASE_4_MODULES | PHASE_5_MODULES | PHASE_7_MODULES
 )
 GT_FIELDS = ("scenario", "drift_start_index", "drift_end_index",
              "affected_features", "drift_magnitude", "random_seed")

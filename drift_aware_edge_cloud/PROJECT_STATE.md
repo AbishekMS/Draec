@@ -1,7 +1,7 @@
 # PROJECT_STATE — generated, do not edit by hand
 
-Generated `2026-08-28 12:37:05Z` by `state_report.py` from 81 code, config
-and provenance files. Surface fingerprint **`a686902805ba5a83`**.
+Generated `2026-08-29 08:05:45Z` by `state_report.py` from 89 code, config
+and provenance files. Surface fingerprint **`c2f145b95260cf91`**.
 
 Regenerate after any change:
 
@@ -27,7 +27,7 @@ script runs no test and no model. For pass counts, run the commands in
 
 ## Implementation status
 
-Read from the `Status :` header of 37 source modules: **18 IMPLEMENTED**, **19 not**.
+Read from the `Status :` header of 40 source modules: **21 IMPLEMENTED**, **19 not**.
 
 - **Phase 1 / Step 3** — complete
   - [x] `src/data/generator.py` — IMPLEMENTED
@@ -51,9 +51,7 @@ Read from the `Status :` header of 37 source modules: **18 IMPLEMENTED**, **19 n
 - **Phase 4** — complete
   - [x] `src/reliability/base.py` — IMPLEMENTED
   - [x] `src/reliability/estimator.py` — IMPLEMENTED
-- **Phase 5** — 2/5
-  - [x] `src/decision/base.py` — IMPLEMENTED
-  - [x] `src/decision/engine.py` — IMPLEMENTED
+- **Phase 5** — not started
   - [ ] `src/network/lri.py` — NOT IMPLEMENTED
   - [ ] `src/network/network_model.py` — NOT IMPLEMENTED
   - [ ] `src/resources/edge_resources.py` — NOT IMPLEMENTED
@@ -64,10 +62,13 @@ Read from the `Status :` header of 37 source modules: **18 IMPLEMENTED**, **19 n
   - [ ] `src/simulation/edge.py` — NOT IMPLEMENTED
   - [ ] `src/simulation/environment.py` — NOT IMPLEMENTED
   - [ ] `src/simulation/hybrid.py` — NOT IMPLEMENTED
-- **Phase 7** — not started
+- **Phase 7** — 3/6
   - [ ] `src/adaptation/deployment.py` — NOT IMPLEMENTED
   - [ ] `src/adaptation/retrainer.py` — NOT IMPLEMENTED
   - [ ] `src/adaptation/validator.py` — NOT IMPLEMENTED
+  - [x] `src/monitoring/base.py` — IMPLEMENTED
+  - [x] `src/monitoring/monitor.py` — IMPLEMENTED
+  - [x] `src/monitoring/registry.py` — IMPLEMENTED
 - **Phase 8** — not started
   - [ ] `adaptation/baselines/cloud_only.py` — NOT IMPLEMENTED
   - [ ] `adaptation/baselines/edge_only.py` — NOT IMPLEMENTED
@@ -77,6 +78,9 @@ Read from the `Status :` header of 37 source modules: **18 IMPLEMENTED**, **19 n
   - [ ] `src/metrics/drift.py` — NOT IMPLEMENTED
   - [ ] `src/metrics/prediction.py` — NOT IMPLEMENTED
   - [ ] `src/metrics/system.py` — NOT IMPLEMENTED
+- **Phase 5 & 6** — complete
+  - [x] `src/decision/base.py` — IMPLEMENTED
+  - [x] `src/decision/engine.py` — IMPLEMENTED
 
 ## Blocking decisions — reserved to the user
 
@@ -162,10 +166,10 @@ Ground-truth consumers, from `ground_truth`:
 
 Configurations present: `default`, `gradual_drift`, `stress_test`, `sudden_drift`
 
-- `default` — resolves and validates, fingerprint `3927fda9e98d`
-- `gradual_drift` — resolves and validates, fingerprint `40669e78dd74`
-- `stress_test` — resolves and validates, fingerprint `0ead60fdfa9d`
-- `sudden_drift` — resolves and validates, fingerprint `95ae953d155a`
+- `default` — resolves and validates, fingerprint `398bd10c83e3`
+- `gradual_drift` — resolves and validates, fingerprint `69d2d206e6f0`
+- `stress_test` — resolves and validates, fingerprint `b7c2d5882c60`
+- `sudden_drift` — resolves and validates, fingerprint `cb43ee07cade`
 
 ## Raw data
 
@@ -213,16 +217,18 @@ Test suite on disk, parsed with `ast`:
 | `tests/test_config.py` | 18 | 0 |
 | `tests/test_decision.py` | 28 | 0 |
 | `tests/test_drift.py` | 20 | 0 |
+| `tests/test_execution.py` | 26 | 0 |
 | `tests/test_generator.py` | 31 | 0 |
 | `tests/test_integrity.py` | 27 | 1 |
 | `tests/test_loader.py` | 33 | 0 |
 | `tests/test_logger.py` | 16 | 0 |
 | `tests/test_models.py` | 14 | 0 |
+| `tests/test_monitoring.py` | 27 | 0 |
 | `tests/test_preprocessing.py` | 40 | 0 |
 | `tests/test_reliability.py` | 26 | 0 |
 | `tests/test_seed.py` | 17 | 0 |
 | `tests/test_stream.py` | 28 | 0 |
-| **total declared** | **298** | **1** |
+| **total declared** | **351** | **1** |
 
 Declared functions are not the collected count: `pytest` expands parametrised cases, so the number it reports is higher. The collected/passed count is only knowable by running it.
 
@@ -256,4 +262,4 @@ Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.ex
 
 ---
 
-_End of generated report. Fingerprint `a686902805ba5a83`; `state_report.py --check` fails if the tree has moved since._
+_End of generated report. Fingerprint `c2f145b95260cf91`; `state_report.py --check` fails if the tree has moved since._
