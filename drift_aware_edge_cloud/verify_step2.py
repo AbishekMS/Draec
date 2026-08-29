@@ -713,6 +713,12 @@ IMPLEMENTED_BY_STEP = {
     "src\\adaptation\\deployment.py": "Phase 9",
     "src\\adaptation\\manager.py": "Phase 9",
     "src\\adaptation\\__init__.py": "Phase 9",
+    "src\\metrics\\__init__.py": "Phase 10",
+    "src\\metrics\\prediction.py": "Phase 10",
+    "src\\metrics\\drift.py": "Phase 10",
+    "src\\metrics\\decision.py": "Phase 10",
+    "src\\metrics\\system.py": "Phase 10",
+    "src\\metrics\\evaluation.py": "Phase 10",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

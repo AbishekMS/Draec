@@ -584,21 +584,19 @@ except Exception as e:
 # Check 27: Scope boundary enforcement (Phase 10 quarantined)
 # =============================================================================
 try:
-    phase10_files = [
+    simulation_files = [
         ROOT / "src" / "simulation" / "__init__.py",
         ROOT / "src" / "simulation" / "environment.py",
-        ROOT / "src" / "metrics" / "__init__.py",
-        ROOT / "src" / "metrics" / "system.py",
     ]
     p10_clean = True
-    for p10 in phase10_files:
+    for p10 in simulation_files:
         if p10.exists():
             tree = ast.parse(p10.read_text(encoding="utf-8"))
             stmts = [n for n in tree.body if not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))]
             if stmts:
                 p10_clean = False
                 break
-    record_check("Check 27: Phase 10 scope boundary", p10_clean, "Phase 10 modules remain pure un-implemented stubs")
+    record_check("Check 27: Simulation scope boundary", p10_clean, "Simulation stubs remain pure un-implemented stubs")
 except Exception as e:
     record_check("Check 27: Phase 10 scope boundary", False, str(e))
 

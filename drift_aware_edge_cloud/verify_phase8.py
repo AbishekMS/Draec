@@ -477,8 +477,6 @@ try:
     later_files = [
         ROOT / "src" / "simulation" / "__init__.py",
         ROOT / "src" / "simulation" / "environment.py",
-        ROOT / "src" / "metrics" / "__init__.py",
-        ROOT / "src" / "metrics" / "system.py",
     ]
     scope_ok = True
     for lf in later_files:
@@ -488,7 +486,7 @@ try:
             if body:
                 scope_ok = False
                 break
-    record_check("Check 24: Scope boundary enforcement", scope_ok, "Phase 10 remains pure un-implemented stubs")
+    record_check("Check 24: Scope boundary enforcement", scope_ok, "Simulation stubs remain pure un-implemented stubs")
 except Exception as e:
     record_check("Check 24: Scope boundary enforcement", False, str(e))
 

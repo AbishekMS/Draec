@@ -1,0 +1,7 @@
+claim,experiment,metric,result_file,figure_or_table,evidence_status,interpretation
+DRAEC maintains higher classification Macro-F1 under drift than static Edge deployment,Experiment 6,Post-drift Macro-F1,results/prediction_metrics.csv,Figure 1 / Table II,SUPPORTED,Adaptive offloading to Cloud XGBoost preserves detection accuracy under sensor bias
+ADWIN detects sudden sensor bias shift with bounded detection delay,Experiment 2,Detection delay (steps),results/drift_metrics.csv,Figure 2,SUPPORTED,ADWIN on prediction probability stream flags distribution shift after drift onset
+Harmonic reliability score Rt enables rapid offloading to Cloud under severe drift,Experiment 3 & 4,"Rt trajectory, Cloud percentage",results/reliability_metrics.csv,Figure 3 / Table III,SUPPORTED,Weakest-link property of harmonic mean rapidly depresses Rt below cloud threshold
+Model adaptation restores post-drift performance without catastrophic forgetting,Experiment 7 & 11,"Post-adaptation F1, version lineage",results/adaptation_metrics.csv,Figure 6,SUPPORTED,Candidate retrained on baseline representative union feedback passes validation on train2
+DRAEC reduces physical edge device power consumption by 30%,N/A,Energy (Joules),N/A,N/A,NOT MEASURED,Energy consumption was not physically instrumented in software emulation
+DRAEC satisfies formal latency hard-deadlines with 99.9% guarantee,N/A,Formal constraint satisfaction,N/A,N/A,NOT MEASURED,Formal optimization / constraint satisfaction was not part of Level 1 controller

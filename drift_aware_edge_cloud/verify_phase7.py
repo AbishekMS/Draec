@@ -409,8 +409,6 @@ def main() -> int:
     later_phase_files = [
         "src/simulation/__init__.py",
         "src/simulation/environment.py",
-        "src/metrics/__init__.py",
-        "src/metrics/system.py",
     ]
     scope_ok = True
     for fpath in later_phase_files:

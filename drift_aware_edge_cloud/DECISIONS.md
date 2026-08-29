@@ -1139,6 +1139,51 @@ Following Phase 6 hardened execution and Phase 7 observability, the DRAEC archit
 - `pytest tests/test_adaptation.py`: 36/36 PASS
 - Full regression across Phases 1–8 verified.
 
+## D-029 · 2026-08-29 · decision · Phase 10 Final Scientific Evaluation, Benchmarking & IEEE Results
+
+**Context.** Phase 10 is the final evaluation stage of the DRAEC project. Phases 1–9 are frozen. The goal is to perform reproducible empirical benchmarking on the WUSTL-IIoT-2021 dataset and generate publication-ready IEEE metrics, tables, figures, statistical tests, and claim-evidence traceability.
+
+**Decision.**
+1. **Dataset & Partition Isolation:**
+   - Exclusively evaluates WUSTL-IIoT-2021 (`wustl_iiot_2021.csv`).
+   - Strict role separation: `train1` (baseline training, 304,166 rows), `train2` (validation, 265,685 rows), `test1` (inference/eval, 624,613 rows).
+   - Strict quarantine: `test1` data and labels are never used for controller decisions, reliability $R_t$, retraining, candidate validation, or adaptation.
+
+2. **Frozen Phases 1–9 Architecture:**
+   - All algorithm parameters, ADWIN thresholds, persistence settings, reliability formulas ($C_t, E_t, D_t, Q_t, R_t$), decision thresholds ($\tau_{\text{critical}}=0.30, \tau_{\text{cloud}}=0.50, \tau_{\text{return}}=0.70$), hybrid gating (0.60), execution semantics, and deployment layers are frozen and immutable.
+
+3. **12 Empirical Experiments:**
+   - Evaluates:
+     1. Baseline ML performance (`EdgeHoeffdingTree` vs `CloudXGBoost`).
+     2. Drift detection (onset, delay, alarms, persistence, $D_t$).
+     3. Reliability response ($C_t, E_t, D_t, Q_t, R_t$ trajectories).
+     4. Routing adaptation (`EDGE_ONLY`, `CLOUD_ONLY`, `STATIC_BASELINE`, `DRAEC_WITHOUT_ADAPTATION`, `FULL_DRAEC`).
+     5. Hybrid execution (confidence gating at 0.60, fallback rate).
+     6. Prediction under drift (pre- vs post-drift Accuracy, Precision, Recall, Macro-F1, MCC, $\Delta\text{Metric}$).
+     7. Adaptation effectiveness (post-drift recovery).
+     8. Latency profiling ($T_{\text{edge}}, T_{\text{cloud}}, T_{\text{network}}, T_{\text{hybrid}}, T_{\text{total}}$).
+     9. Network conditions simulation (normal, high latency, packet loss, disconnected).
+     10. Execution reliability (success/failure rates and breakdown).
+     11. Model version tracking ($v_1 \to v_2$, version update counts).
+     12. Component ablation study (static baseline, no drift signal, no adaptation, full DRAEC).
+
+4. **Multi-Seed Protocol & Statistical Rigor:**
+   - Evaluates 5 deterministic random seeds (`[42, 43, 44, 45, 46]`).
+   - Reports mean, standard deviation, and 95% confidence intervals.
+   - Computes paired statistical hypothesis testing (paired t-test and Wilcoxon signed-rank test).
+   - Enforces zero-event / insufficient-data rules and avoids artificial inflation of $N$.
+
+5. **Scientific Reporting Integrity & Claim Traceability:**
+   - Generates 13 CSVs in `results/`, 7 publication figures in `results/figures/`, 4 publication tables in `results/tables/`.
+   - Generates `results/observation_report.md`, `results/reproducibility_metadata.json`, and `results/claim_evidence_matrix.csv`.
+   - Explicitly records `NOT MEASURED` for uninstrumented quantities (CPU, RAM, Energy, Physical hardware, and formal constraints).
+
+**Verification.**
+- `verify_phase10.py`: 24/24 PASS
+- `pytest tests/test_metrics.py`: 15/15 PASS
+- `pytest tests/test_integrity.py`: 27/27 PASS
+- Full regression suite across Steps 2–5 and Phases 2–9 passing.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.

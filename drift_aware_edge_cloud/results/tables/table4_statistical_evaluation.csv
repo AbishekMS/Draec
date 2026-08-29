@@ -1,0 +1,4 @@
+comparison,metric,experimental_unit,n_replicates,test_name,statistic,p_value,m1_mean,m2_mean,mean_difference,diff_ci_95_lower,diff_ci_95_upper
+FULL_DRAEC vs STATIC_BASELINE,post_f1,independent random seed,5,Exact zero-variance paired difference,0.0,1.0,1.0,1.0,0.0,0.0,0.0
+FULL_DRAEC vs DRAEC_WITHOUT_ADAPTATION,post_f1,independent random seed,5,Exact zero-variance paired difference,0.0,1.0,1.0,1.0,0.0,0.0,0.0
+DRAEC_WITHOUT_ADAPTATION vs STATIC_BASELINE,post_f1,independent random seed,5,Exact zero-variance paired difference,0.0,1.0,1.0,1.0,0.0,0.0,0.0

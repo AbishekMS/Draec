@@ -1,0 +1,6 @@
+drift_scenario,drift_onset,first_detection_point,detection_delay,detection_status,total_alarms,false_alarms_pre_drift,post_drift_alarms,transient_alarms,persistent_events,mean_severity,max_severity,post_drift_mean_severity,seed
+drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,42
+drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,43
+drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,44
+drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,45
+drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,46

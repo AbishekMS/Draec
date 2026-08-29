@@ -1,7 +1,7 @@
 # PROJECT_STATE — generated, do not edit by hand
 
-Generated `2026-08-29 13:11:26Z` by `state_report.py` from 101 code, config
-and provenance files. Surface fingerprint **`8ed4f3054ff6b2d7`**.
+Generated `2026-08-29 17:19:57Z` by `state_report.py` from 104 code, config
+and provenance files. Surface fingerprint **`ce80c33e169f5a81`**.
 
 Regenerate after any change:
 
@@ -27,7 +27,7 @@ script runs no test and no model. For pass counts, run the commands in
 
 ## Implementation status
 
-Read from the `Status :` header of 47 source modules: **31 IMPLEMENTED**, **16 not**.
+Read from the `Status :` header of 48 source modules: **36 IMPLEMENTED**, **12 not**.
 
 - **Phase 1 / Step 3** — complete
   - [x] `src/data/generator.py` — IMPLEMENTED
@@ -81,11 +81,12 @@ Read from the `Status :` header of 47 source modules: **31 IMPLEMENTED**, **16 n
   - [x] `src/adaptation/manager.py` — IMPLEMENTED
   - [x] `src/adaptation/retrainer.py` — IMPLEMENTED
   - [x] `src/adaptation/validator.py` — IMPLEMENTED
-- **Phase 10** — not started
-  - [ ] `src/metrics/decision.py` — NOT IMPLEMENTED
-  - [ ] `src/metrics/drift.py` — NOT IMPLEMENTED
-  - [ ] `src/metrics/prediction.py` — NOT IMPLEMENTED
-  - [ ] `src/metrics/system.py` — NOT IMPLEMENTED
+- **Phase 10** — complete
+  - [x] `src/metrics/decision.py` — IMPLEMENTED
+  - [x] `src/metrics/drift.py` — IMPLEMENTED
+  - [x] `src/metrics/evaluation.py` — IMPLEMENTED
+  - [x] `src/metrics/prediction.py` — IMPLEMENTED
+  - [x] `src/metrics/system.py` — IMPLEMENTED
 - **Phase 5 & 6** — complete
   - [x] `src/decision/base.py` — IMPLEMENTED
   - [x] `src/decision/engine.py` — IMPLEMENTED
@@ -232,13 +233,14 @@ Test suite on disk, parsed with `ast`:
 | `tests/test_integrity.py` | 27 | 1 |
 | `tests/test_loader.py` | 33 | 0 |
 | `tests/test_logger.py` | 16 | 0 |
+| `tests/test_metrics.py` | 15 | 0 |
 | `tests/test_models.py` | 14 | 0 |
 | `tests/test_monitoring.py` | 27 | 0 |
 | `tests/test_preprocessing.py` | 40 | 0 |
 | `tests/test_reliability.py` | 26 | 0 |
 | `tests/test_seed.py` | 17 | 0 |
 | `tests/test_stream.py` | 28 | 0 |
-| **total declared** | **415** | **1** |
+| **total declared** | **430** | **1** |
 
 Declared functions are not the collected count: `pytest` expands parametrised cases, so the number it reports is higher. The collected/passed count is only knowable by running it.
 
@@ -248,7 +250,7 @@ Regenerable, not authoritative. `data/synthetic/` must contain only ground-truth
 
 | Directory | Entries |
 |---|---|
-| `results/` | 15 — `features_gradual_drift.csv`, `features_stress_test.csv`, `features_sudden_drift.csv`, `phase1_ground_truth.csv`, `phase1_normalization_absorption.csv`, `phase1_summary.csv`, … (+9 more) |
+| `results/` | 36 — `ablation_metrics.csv`, `adaptation_metrics.csv`, `baseline_model_metrics.csv`, `claim_evidence_matrix.csv`, `drift_metrics.csv`, `execution_metrics.csv`, … (+30 more) |
 | `plots/` | 1 — `phase1_demo.png` |
 | `data/synthetic/` | 4 — `ground_truth.json`, `ground_truth_gradual_drift.json`, `ground_truth_stress_test.json`, `ground_truth_sudden_drift.json` |
 | `data/processed/` | 0 |
@@ -272,4 +274,4 @@ Interpreter running this report: **3.14.2** (`D:\tactics\.venv\Scripts\python.ex
 
 ---
 
-_End of generated report. Fingerprint `8ed4f3054ff6b2d7`; `state_report.py --check` fails if the tree has moved since._
+_End of generated report. Fingerprint `ce80c33e169f5a81`; `state_report.py --check` fails if the tree has moved since._

@@ -1,0 +1,3 @@
+model,accuracy,precision,recall,f1,mcc,sample_count
+EdgeHoeffdingTree,1.0,1.0,1.0,1.0,0.0,3000
+CloudXGBoost,1.0,1.0,1.0,1.0,0.0,3000

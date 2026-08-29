@@ -1,0 +1,51 @@
+{
+  "project": "DRAEC (Drift-Aware Edge-Cloud Orchestration)",
+  "dataset": "WUSTL-IIoT-2021",
+  "dataset_file": "wustl_iiot_2021.csv",
+  "partitions": {
+    "train1": "baseline_train (09:46:03 to 11:29:48, 304,166 rows)",
+    "train2": "baseline_validation (11:29:49 to 13:07:36, 265,685 rows)",
+    "test1": "inference_stream (13:07:37 to 16:48:11, 624,613 rows)"
+  },
+  "experimental_unit": "independent random seed",
+  "seeds_evaluated": [
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "statistical_protocol": "Paired hypothesis testing across random seeds (Wilcoxon / paired t-test)",
+  "completeness_matrix": {
+    "Accuracy": "MEASURED",
+    "Precision": "MEASURED",
+    "Recall": "MEASURED",
+    "F1": "MEASURED",
+    "MCC": "MEASURED",
+    "Drift delay": "MEASURED",
+    "Reliability": "MEASURED",
+    "Routing": "MEASURED",
+    "Hybrid fallback": "MEASURED",
+    "Edge latency": "MEASURED",
+    "Cloud latency": "MEASURED",
+    "Network latency": "MEASURED (SIMULATED)",
+    "Hybrid latency": "MEASURED",
+    "Offloading ratio": "MEASURED",
+    "Packet loss": "MEASURED",
+    "Adaptation": "MEASURED",
+    "CPU": "NOT MEASURED",
+    "RAM": "NOT MEASURED",
+    "Energy": "NOT MEASURED",
+    "Physical hardware": "NOT MEASURED / SIMULATED ONLY",
+    "Bandwidth": "NOT MEASURED",
+    "Constraint satisfaction": "NOT IMPLEMENTED / NOT MEASURED"
+  },
+  "unmeasured_system_status": {
+    "cpu_utilization": "NOT MEASURED",
+    "ram_utilization": "NOT MEASURED",
+    "energy_consumption": "NOT MEASURED",
+    "physical_hardware_deployment": "NOT MEASURED / SIMULATED RUNTIME ONLY",
+    "bandwidth": "NOT MEASURED",
+    "formal_constraint_satisfaction": "NOT IMPLEMENTED / NOT MEASURED"
+  }
+}

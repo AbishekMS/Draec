@@ -64,9 +64,14 @@ PHASE_9_MODULES = {
     "src/adaptation/validator.py", "src/adaptation/deployment.py",
     "src/adaptation/manager.py",
 }
+PHASE_10_MODULES = {
+    "src/metrics/__init__.py", "src/metrics/prediction.py",
+    "src/metrics/drift.py", "src/metrics/decision.py",
+    "src/metrics/system.py", "src/metrics/evaluation.py",
+}
 IMPLEMENTED = (
     PHASE_1_MODULES | PHASE_2_MODULES | PHASE_3_MODULES |
-    PHASE_4_MODULES | PHASE_5_MODULES | PHASE_7_MODULES | PHASE_8_MODULES | PHASE_9_MODULES
+    PHASE_4_MODULES | PHASE_5_MODULES | PHASE_7_MODULES | PHASE_8_MODULES | PHASE_9_MODULES | PHASE_10_MODULES
 )
 GT_FIELDS = ("scenario", "drift_start_index", "drift_end_index",
              "affected_features", "drift_magnitude", "random_seed")
