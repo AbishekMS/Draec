@@ -119,7 +119,10 @@ class DRAECMonitor:
         q_val: float | None = None
 
         if reliability_score is not None:
-            r_val = float(reliability_score.reliability)
+            if hasattr(reliability_score, "reliability"):
+                r_val = float(reliability_score.reliability)
+            else:
+                r_val = float(reliability_score)
             if hasattr(reliability_score, "inputs"):
                 c_val = getattr(reliability_score.inputs, "confidence", None)
                 e_val = getattr(reliability_score.inputs, "error", None)
@@ -179,6 +182,8 @@ class DRAECMonitor:
             t_edge = getattr(execution_result, "edge_latency_s", None)
             t_cloud = getattr(execution_result, "cloud_latency_s", None)
             t_hybrid = getattr(execution_result, "hybrid_latency_s", None)
+            t_net = getattr(execution_result, "network_latency_s", None)
+            pkt_lost = bool(getattr(execution_result, "packet_lost", False))
             error_msg = getattr(execution_result, "error", None)
 
             # If inference_latency_s is provided but specific latencies are None
@@ -191,6 +196,9 @@ class DRAECMonitor:
                         t_cloud = lat
                     elif action_str == "HYBRID":
                         t_hybrid = lat
+        else:
+            t_net = None
+            pkt_lost = False
 
         # 4. Resolve Drift (Phase 3)
         drift_det: bool = False
@@ -232,6 +240,8 @@ class DRAECMonitor:
             alerts_list.append("execution_failure_detected")
         if fallback_occurred:
             alerts_list.append("cloud_fallback_active")
+        if pkt_lost:
+            alerts_list.append("packet_loss")
 
         # 8. Update Global Streaming Counters (Independent of Bounded History)
         self._total_observations += 1
@@ -334,6 +344,8 @@ class DRAECMonitor:
             edge_latency_s=t_edge,
             cloud_latency_s=t_cloud,
             hybrid_latency_s=t_hybrid,
+            network_latency_s=t_net,
+            packet_lost=pkt_lost,
             model_version=model_version,
             drift_detected=drift_det,
             is_persistent=drift_pers,
@@ -461,6 +473,8 @@ class DRAECMonitor:
             "raw_severity",
             "smoothed_severity",
             "controller_policy",
+            "network_latency_s",
+            "packet_lost",
         ]
 
         if not self._history:

@@ -1029,10 +1029,121 @@ Following hardened execution in Phase 6, the DRAEC architecture requires a dedic
 - `pytest tests/test_monitoring.py`: 27/27 PASS
 - Full regression suite across Phases 1–6 passing.
 
+### D-027: Phase 8 — DRAEC Edge–Cloud Deployment & Network Execution Layer
+
+- **Date**: 2026-08-29
+- **Status**: DECIDED / IMPLEMENTED
+- **Phase**: Phase 8
+- **Scope**: Deployment runtime execution, deterministic network simulation, and packet loss handling.
+
+**Context.**
+Following Phase 6 hardened execution and Phase 7 observability, the DRAEC architecture requires an explicit execution environment modeling the operational realities between Edge and Cloud: network communication latency, jitter, packet loss, and node availability. This environment must execute routing decisions from Level 1 (Phase 5) without changing the decision policy, reliability equations, or model contracts, while providing a realistic simulation substrate for downstream evaluations.
+
+**Decisions.**
+
+1. **Execution Environment Only (No Routing Policy / No Adaptation):**
+   - Phase 8 is an execution layer. The Level 1 Decision Engine action space $a_t \in \{\text{EDGE}, \text{CLOUD}, \text{HYBRID}\}$ and hysteresis thresholds ($\tau_{\text{critical}}=0.30, \tau_{\text{cloud}}=0.50, \tau_{\text{return}}=0.70$) remain authoritative and unaltered.
+   - Phase 4 Reliability formulation $R_t = f(C_t, E_t, D_t, Q_t)$ and Phase 3 drift signals remain frozen.
+   - Retraining, parameter updates, model replacement, and compression are strictly quarantined to Phase 9. Final benchmark comparisons and statistical significance testing are strictly quarantined to Phase 10.
+
+2. **Simulation / Emulation First (Honest Terminology):**
+   - Implemented via a deterministic software simulation layer (`NetworkSimulator`) in `src/deployment/network.py`.
+   - Physical hardware (Raspberry Pi / Jetson / cloud clusters) is out of scope.
+   - Parameters (`base_latency_s`, `jitter_s`, `packet_loss_probability`, `availability`, `seed`) are explicitly defined as experimental simulation defaults in `config/default.yaml` under the top-level `network:` section.
+   - Simulated network latency is recorded without physical blocking (`time.sleep` disabled by default, `pacing_enabled: false`).
+
+3. **Separate Latency Accounting:**
+   - Clearly maintains independent quantities:
+     - $T_{\text{edge}}$: Measured Edge model inference duration.
+     - $T_{\text{cloud}}$: Measured Cloud model software execution duration.
+     - $T_{\text{network}}$: Simulated communication delay ($T_{\text{base}} + \text{jitter}$).
+     - $T_{\text{hybrid}}$: Measured complete wall-clock Hybrid path duration.
+   - $T_{\text{cloud}}$ is never overwritten with $T_{\text{network}} + T_{\text{cloud}}$. Total path latency is tracked separately.
+
+4. **Zero Prediction Fabrication on Failure:**
+   - If transmission experiences packet loss or link disconnection, or if Edge/Cloud runtime fails, prediction and probabilities strictly evaluate to `None`.
+   - Result reports `status = ExecutionStatus.FAILED`, `success = False`, recording failure provenance in `error` without silent conversion.
+
+5. **Two-Level Hybrid Execution Integrity:**
+   - In Hybrid mode, Edge executes first.
+   - If $C_{\text{edge}} \ge 0.60$: completes at Edge (`model_used = 'hybrid_edge'`, no network transmission, no Cloud execution).
+   - If $C_{\text{edge}} < 0.60$: transmits feature payload over network to Cloud. If network succeeds, Cloud executes (`status = FALLBACK`, `model_used = 'hybrid_cloud'`).
+   - Strictly no probability averaging, no voting, no ensemble fusion, no Cloud-first Hybrid.
+
+6. **Deployment Abstraction (`src/deployment/`):**
+   - `EdgeRuntime`: Wraps Edge model, tracks device availability, injects failures, and measures $T_{\text{edge}}$.
+   - `CloudRuntime`: Wraps Cloud model, tracks service availability, injects failures, and measures $T_{\text{cloud}}$.
+   - `NetworkSimulator`: Models network delay, jitter, packet loss, and link availability deterministically.
+   - `DeploymentEnvironment`: Coordinates runtimes and network simulation, exposing `execute_edge`, `execute_cloud`, `execute_hybrid`, and `execute(action, x)`.
+
+7. **Phase 7 Observability Backward Compatibility:**
+   - Extended `ExecutionResult` and `MonitoringRecord` with optional `network_latency_s: float | None = None` and `packet_lost: bool = False`.
+   - `DRAECMonitor` ingests network metrics and records `"packet_loss"` alerts without altering existing Phase 7 telemetry semantics.
+
+**Verification.**
+- `verify_phase8.py`: 24/24 PASS
+- `pytest tests/test_deployment.py`: 28/28 PASS
+- Full regression suite across Phases 1–7 passing.
+
+---
+
+## D-028 · 2026-08-29 · decision · Phase 9 Model Adaptation & Retraining Architecture
+
+**Context.** In Phase 9, non-stationary IoT streams experience persistent concept and data drift. While Phase 5/6 provide immediate mitigation via dynamic edge-cloud-hybrid routing, long-term system health requires retraining and adapting models on delayed ground-truth feedback.
+
+**Decision.**
+1. **Persistent Drift Requirement:**
+   - Retraining is triggered IF AND ONLY IF drift is confirmed persistent (`is_persistent == True`), drift severity meets the threshold ($D_t \ge 0.30$), and sufficient labeled feedback has arrived ($N_{\text{feedback}} \ge 50$).
+   - Transient, instantaneous ADWIN drift alarms are strictly ignored.
+
+2. **Anti-Catastrophic Forgetting via Representative Baseline Sampling:**
+   - Candidate Cloud models are NOT trained solely on recent delayed feedback.
+   - Training dataset is formed by merging a bounded representative sample of baseline data (`train1`) with causally eligible feedback:
+     $$D_{\text{candidate}} = D_{\text{baseline\_representative}} \cup D_{\text{causally\_eligible\_feedback}}$$
+   - Retains foundational pre-drift representations and prevents catastrophic forgetting.
+   - Seeded deterministic retraining ensures bit-exact reproducibility.
+
+3. **Strict Data Partition Isolation:**
+   - Partition contract:
+     - `train1`: baseline training and representative baseline sample cache.
+     - `train2`: candidate model validation and regression testing.
+     - `test1`: final Phase 10 evaluation stream strictly quarantined. Observations from `test1` are rejected by `FeedbackQueue` and `CandidateValidator` to prevent data leakage.
+
+4. **Comparative Candidate Validation:**
+   - Candidate models are evaluated on clean validation data (`train2`), comparing candidate Macro-F1 ($M_{\text{cand}}$) against active model Macro-F1 ($M_{\text{active}}$).
+   - Candidate is accepted IF AND ONLY IF:
+     - $M_{\text{cand}} \ge \text{minimum\_metric}$ (default 0.70).
+     - $M_{\text{cand}} \ge M_{\text{active}} - \delta_{\text{margin}}$ (default margin 0.05).
+   - Candidates causing meaningful regression are rejected; active models remain in service unaltered.
+
+5. **Atomic Cloud + Edge Deployment with Rollback:**
+   - Updates to Cloud runtime and Edge runtime are executed as an atomic two-stage transaction.
+   - Staging sequence: Cloud model update $\to$ Edge model update.
+   - If Edge deployment fails after Cloud deployment succeeds: Cloud runtime is immediately rolled back to the previous active model instance.
+   - Active system version advances IF AND ONLY IF both Cloud and Edge deployments succeed.
+   - Zero stale Edge models are treated as current.
+   - Explicit 4-way version tracking: `candidate_version`, `cloud_version`, `edge_version`, `active_system_version`.
+
+6. **Component Architecture (`src/adaptation/`):**
+   - `FeedbackQueue`: Bounded FIFO buffer storing predictions and attaching delayed ground-truth labels upon causal arrival index ($t_{\text{arrival}} \ge t_{\text{obs}}$). Quarantines future feedback ($t_{\text{arrival}} \le t_{\text{curr}}$).
+   - `CloudRetrainer`: Combines representative baseline sample with eligible feedback to train candidate `CloudXGBoost` deterministically.
+   - `CandidateValidator`: Evaluates candidate vs active model on clean validation data (`train2`).
+   - `AtomicModelDeployer`: Coordinates atomic Cloud and Edge updates with rollback safety and updates `ModelRegistry`.
+   - `AdaptationManager`: Orchestrates feedback intake, trigger gating, retraining, validation, deployment, and cooldown timing.
+
+7. **Experimental Defaults as Non-Optimality Claims:**
+   - Trigger and validation defaults (`min_severity = 0.30`, `min_feedback_samples = 50`, `cooldown_steps = 100`, `minimum_metric = 0.70`, `max_regression_margin = 0.05`) are implementation defaults subject to Phase 10 sensitivity analysis.
+
+**Verification.**
+- `verify_phase9.py`: 27/27 PASS
+- `pytest tests/test_adaptation.py`: 36/36 PASS
+- Full regression across Phases 1–8 verified.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.
      Never edit or delete an existing entry; supersede it with a new one. -->
+
 
 
 

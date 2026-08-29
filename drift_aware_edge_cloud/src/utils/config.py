@@ -58,6 +58,8 @@ KNOWN_SECTIONS = (
     "decision",
     "execution",
     "monitoring",
+    "network",
+    "adaptation",
     "ground_truth",
     "streaming",
     "output",

@@ -407,10 +407,6 @@ def main() -> int:
     # Check 24: Phase 7 Scope Boundary (Quarantine of Phase 8, 9, 10)
     # -------------------------------------------------------------------------
     later_phase_files = [
-        "src/adaptation/__init__.py",
-        "src/adaptation/retrainer.py",
-        "src/adaptation/validator.py",
-        "src/adaptation/deployment.py",
         "src/simulation/__init__.py",
         "src/simulation/environment.py",
         "src/metrics/__init__.py",

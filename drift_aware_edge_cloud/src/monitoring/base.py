@@ -152,6 +152,8 @@ class MonitoringRecord:
     edge_latency_s: float | None = None
     cloud_latency_s: float | None = None
     hybrid_latency_s: float | None = None
+    network_latency_s: float | None = None
+    packet_lost: bool = False
     model_version: str | None = None
     drift_detected: bool = False
     is_persistent: bool = False
@@ -179,6 +181,8 @@ class MonitoringRecord:
             "edge_latency_s": self.edge_latency_s,
             "cloud_latency_s": self.cloud_latency_s,
             "hybrid_latency_s": self.hybrid_latency_s,
+            "network_latency_s": self.network_latency_s,
+            "packet_lost": self.packet_lost,
             "model_version": self.model_version,
             "drift_detected": self.drift_detected,
             "is_persistent": self.is_persistent,

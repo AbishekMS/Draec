@@ -307,6 +307,42 @@ check(
     f"(clean-stream shift {shift_clean:+.4f} is the confound and is subtracted)",
 )
 del Zd, Zc
+import gc
+gc.collect()
+names = preprocessing.feature_names(scfg, sstats)
+mean_cols = [names.index(f"{c}__mean") for c in affected]
+clean_windows = list(stream.iter_windows(infer, scfg, valid_mask=prep_inf.quality.valid))
+fm_clean = preprocessing.extract_features(scfg, prep_inf, clean_windows)
+pre_mask_c = fm_clean.end_index <= start
+post_mask_c = fm_clean.start_index >= start
+pre_c = fm_clean.X[pre_mask_c][:, mean_cols].mean(axis=0)
+post_c = fm_clean.X[post_mask_c][:, mean_cols].mean(axis=0)
+delta_c = float(np.mean(post_c - pre_c))
+del fm_clean, clean_windows
+
+# Pre-calculate Check 15 metrics before releasing memory
+deg = list(q.degenerate_bound_columns)
+lo_b, hi_b = stats.outlier_bounds(cfg)
+deg_rates = {c: int(((infer.frame[c] < lo_b[c]) | (infer.frame[c] > hi_b[c])).sum()) for c in deg}
+keep = [c for c in stats.continuous if c not in set(deg)]
+sub_keep = prep_inf.raw_frame[keep]
+alt = (sub_keep.lt(lo_b[keep], axis=1) | sub_keep.gt(hi_b[keep], axis=1)).any(axis=1)
+q_outlier_mean = float(q.outlier.mean())
+alt_mean = float(alt.mean())
+infer_len = len(infer.frame)
+q_notes = list(q.notes)
+
+zmean = prep_inf.frame.mean()
+n_gt1 = int((zmean.abs() > 1.0).sum())
+n_gt3 = int((zmean.abs() > 3.0).sum())
+worst = zmean.abs().idxmax()
+worst_z = float(zmean[worst])
+worst_std = float(prep_inf.frame[worst].std(ddof=0))
+zmean_abs_mean = float(zmean.abs().mean())
+zmean_abs_median = float(zmean.abs().median())
+zmean_len = len(zmean)
+
+del sub_keep, alt, prep_clean, prep_inf, infer, sinfer, q
 gc.collect()
 
 # =============================================================================
@@ -457,19 +493,7 @@ fm_end_onset_prev = int(fm.end_index[onset_window - 1])
 del fm, windows
 gc.collect()
 
-prep_clean_full = prep_inf
-clean_windows = list(stream.iter_windows(sinfer, scfg,
-                                        valid_mask=prep_clean_full.quality.valid))
-fm_clean = preprocessing.extract_features(
-    scfg, prep_clean_full, clean_windows)
-del clean_windows
-gc.collect()
-
-pre_c = fm_clean.X[pre_mask][:, mean_cols].mean(axis=0)
-post_c = fm_clean.X[post_mask][:, mean_cols].mean(axis=0)
-delta_c = float(np.mean(post_c - pre_c))
-del fm_clean
-gc.collect()
+# delta_c was computed right after check 8 to minimize cumulative memory pressure
 
 note(f"window-level __mean shift on affected channels: drifted={delta:+.4f}, "
      f"clean={delta_c:+.4f}, attributable={delta - delta_c:+.4f} sigma")
@@ -489,51 +513,40 @@ check(
 # 15. OPEN FINDINGS -- measured, reported, behaviour unchanged
 # =============================================================================
 # 15a. Degenerate IQR bounds on piecewise-constant channels.
-deg = list(q.degenerate_bound_columns)
-lo_b, hi_b = stats.outlier_bounds(cfg)
-deg_rates = {c: int(((infer.frame[c] < lo_b[c]) | (infer.frame[c] > hi_b[c])).sum())
-             for c in deg}
-keep = [c for c in stats.continuous if c not in set(deg)]
-sub_keep = prep_inf.raw_frame[keep]
-alt = (sub_keep.lt(lo_b[keep], axis=1) | sub_keep.gt(hi_b[keep], axis=1)).any(axis=1)
 note("FINDING: degenerate outlier bounds (q1 == q3 -> zero-width band):")
 for c in deg:
     note(f"  {c}: q1=q3={float(stats.q1[c]):.5f}, baseline std="
          f"{float(stats.std[c]):.5f}, flags {deg_rates[c]:,} rows "
-         f"({deg_rates[c] / len(infer.frame):.2%})")
+         f"({deg_rates[c] / infer_len:.2%})")
 note(f"  row-level flag rate WITH degenerate channels    : "
-     f"{q.outlier.mean():.4%}  ({len(stats.continuous)} channels)")
+     f"{q_outlier_mean:.4%}  ({len(stats.continuous)} channels)")
 note(f"  row-level flag rate WITHOUT degenerate channels : "
-     f"{alt.mean():.4%}  ({len(keep)} channels)")
+     f"{alt_mean:.4%}  ({len(keep)} channels)")
 note("  behaviour unchanged; awaiting a decision on what 'outlier' means for a "
      "constant setpoint")
 
 # 15b. Pre-existing regime difference between train1 and test1, before any
 # injected drift. Constant across the whole stream, so it does not confound the
 # post-minus-pre contrast -- but a detector will see it from row 0.
-zmean = prep_inf.frame.mean()
-n_gt1 = int((zmean.abs() > 1.0).sum())
-n_gt3 = int((zmean.abs() > 3.0).sum())
-worst = zmean.abs().idxmax()
 note("FINDING: pre-existing train1 -> test1 shift, in frozen-z units, with NO "
      "drift injected:")
-note(f"  |z| > 1 sigma: {n_gt1} of {len(zmean)} features; |z| > 3 sigma: "
-     f"{n_gt3}; mean |z| = {zmean.abs().mean():.4f}, median "
-     f"{zmean.abs().median():.4f}")
-note(f"  worst: {worst} at {float(zmean[worst]):+.4f} sigma, within-test1 std "
-     f"{float(prep_inf.frame[worst].std(ddof=0)):.3e}")
+note(f"  |z| > 1 sigma: {n_gt1} of {zmean_len} features; |z| > 3 sigma: "
+     f"{n_gt3}; mean |z| = {zmean_abs_mean:.4f}, median "
+     f"{zmean_abs_median:.4f}")
+note(f"  worst: {worst} at {worst_z:+.4f} sigma, within-test1 std "
+     f"{worst_std:.3e}")
 note(f"  clean-stream post-minus-pre shift measured in check 8 was "
      f"{shift_clean:+.4f} sigma, i.e. this offset is flat across the stream and "
      f"is subtracted out of the drift measurement")
 check(
     "15. both open findings are self-reporting and quantified",
-    (len(deg) > 0 and any("DEGENERATE OUTLIER BOUNDS" in n for n in q.notes)
-     and any("EXCLUDING the" in n for n in q.notes)
-     and float(alt.mean()) < float(q.outlier.mean())
+    (len(deg) > 0 and any("DEGENERATE OUTLIER BOUNDS" in n for n in q_notes)
+     and any("EXCLUDING the" in n for n in q_notes)
+     and alt_mean < q_outlier_mean
      and abs(shift_clean) < 0.2),
     f"{len(deg)} degenerate channel(s) named in the quality report; flag rate "
-    f"{q.outlier.mean():.2%} -> {alt.mean():.2%} once excluded; "
-    f"{n_gt1}/{len(zmean)} features already shifted >1 sigma at deployment; "
+    f"{q_outlier_mean:.2%} -> {alt_mean:.2%} once excluded; "
+    f"{n_gt1}/{zmean_len} features already shifted >1 sigma at deployment; "
     f"flat-offset confound bounded at {abs(shift_clean):.4f} sigma",
 )
 

@@ -621,13 +621,13 @@ check("8. No fabricated data or labels", fab_ok,
 phase_ok = True
 ALLOWED_SECTIONS = {
     "_extends", "meta", "reproducibility", "dataset", "split", "preprocessing",
-    "drift", "decision", "execution", "monitoring", "ground_truth", "streaming", "output", "reserved_for_later_phases",
+    "drift", "decision", "execution", "monitoring", "network", "adaptation", "ground_truth", "streaming", "output", "reserved_for_later_phases",
 }
 # Names that would mean a later-phase component had been configured for real.
 LATER_PHASE_KEYS = re.compile(
     r"^(model|models|edge|cloud|hybrid|adwin|drift_detector|detector|"
-    r"reliability|lri|wds|controller|network|edge_resources|"
-    r"resources|adaptation|retraining|simpy|baselines|ablations|experiments|"
+    r"reliability|lri|wds|controller|edge_resources|"
+    r"resources|simpy|baselines|ablations|experiments|"
     r"metrics|statistics|dashboard|mlflow)$"
 )
 for fn in [BASE] + OVERLAYS:
@@ -701,6 +701,18 @@ IMPLEMENTED_BY_STEP = {
     "src\\monitoring\\registry.py": "Phase 7",
     "src\\monitoring\\monitor.py": "Phase 7",
     "src\\monitoring\\__init__.py": "Phase 7",
+    "src\\deployment\\base.py": "Phase 8",
+    "src\\deployment\\network.py": "Phase 8",
+    "src\\deployment\\runtimes.py": "Phase 8",
+    "src\\deployment\\environment.py": "Phase 8",
+    "src\\deployment\\__init__.py": "Phase 8",
+    "src\\adaptation\\base.py": "Phase 9",
+    "src\\adaptation\\feedback.py": "Phase 9",
+    "src\\adaptation\\retrainer.py": "Phase 9",
+    "src\\adaptation\\validator.py": "Phase 9",
+    "src\\adaptation\\deployment.py": "Phase 9",
+    "src\\adaptation\\manager.py": "Phase 9",
+    "src\\adaptation\\__init__.py": "Phase 9",
 }
 nonempty, expected = [], []
 for py in (ROOT / "src").rglob("*.py"):

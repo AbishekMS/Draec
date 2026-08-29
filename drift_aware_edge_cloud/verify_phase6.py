@@ -457,8 +457,6 @@ def main() -> int:
     # -------------------------------------------------------------------------
     # Check that Phase 7+ files are still un-implemented skeletons
     later_phase_files = [
-        "src/adaptation/__init__.py",
-        "src/adaptation/retrainer.py",
         "src/simulation/__init__.py",
         "src/evaluation/__init__.py",
     ]

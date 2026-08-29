@@ -672,6 +672,66 @@ monitoring:
     drift_active_threshold: 0.10
 
 # -----------------------------------------------------------------------------
+# 5e. EDGE-CLOUD DEPLOYMENT & NETWORK EXECUTION (PHASE 8)
+# -----------------------------------------------------------------------------
+network:
+  enabled: true
+  mode: simulation
+
+  latency:
+    base_s: 0.020
+    jitter_s: 0.005
+
+  packet_loss:
+    probability: 0.0
+
+  availability:
+    edge: true
+    cloud: true
+    network: true
+
+  deterministic:
+    enabled: true
+    seed: 42
+
+  pacing_enabled: false
+
+# -----------------------------------------------------------------------------
+# 5f. MODEL ADAPTATION & RETRAINING (PHASE 9)
+# -----------------------------------------------------------------------------
+adaptation:
+  enabled: true
+  mode: simulation
+
+  trigger:
+    require_persistent_drift: true
+    min_severity: 0.30
+    min_feedback_samples: 50
+
+  cooldown:
+    steps: 100
+
+  training:
+    max_feedback_samples: 1000
+    baseline_sample_size: 500
+    random_seed: 42
+    cloud_model:
+      n_estimators: 100
+      max_depth: 6
+      learning_rate: 0.1
+
+  validation:
+    enabled: true
+    metric: macro_f1
+    minimum_metric: 0.70
+    max_regression_margin: 0.05
+
+  deployment:
+    enabled: true
+    atomic: true
+    mode: simulation
+
+# -----------------------------------------------------------------------------
 # 6. GROUND TRUTH  (EVALUATION ONLY -- QUARANTINED)
 # -----------------------------------------------------------------------------
 # The generator knows the true drift onset because it created it. That

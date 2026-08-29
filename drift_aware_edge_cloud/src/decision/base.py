@@ -221,6 +221,8 @@ class ExecutionResult:
     edge_latency_s: float | None = None
     cloud_latency_s: float | None = None
     hybrid_latency_s: float | None = None
+    network_latency_s: float | None = None
+    packet_lost: bool = False
     error: str | None = None
     observation_index: int | None = None
     timestamp: Any | None = None
