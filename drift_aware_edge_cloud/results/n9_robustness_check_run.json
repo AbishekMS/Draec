@@ -1,0 +1,35 @@
+{
+  "n_features": 9,
+  "magnitude": 5.0,
+  "seed": 42,
+  "max_d": 0.9999999999999998,
+  "min_r": 3.9999999463178425e-08,
+  "post_d": 0.9997547159451342,
+  "post_r": 0.0005338391365911151,
+  "pre_alarms": 0,
+  "first_alarm_step": 12511,
+  "adwin_delay": 11,
+  "persistent_events": 100,
+  "edge_pct": 50.024,
+  "hybrid_pct": 0.012,
+  "cloud_pct": 49.964,
+  "switches": 2,
+  "adapt_triggers": 2,
+  "deployments": 0,
+  "final_version": "v1",
+  "candidate_macro_f1": 0.41397093295827475,
+  "candidate_validation_status": "REJECTED",
+  "candidate_validation_reason": "Candidate macro_f1 (0.4140) below minimum threshold (0.7000).",
+  "nan_count_r": 0,
+  "nan_count_d": 0,
+  "inf_count_r": 0,
+  "inf_count_d": 0,
+  "r_bounds": [
+    3.9999999463178425e-08,
+    0.9957435450783615
+  ],
+  "d_bounds": [
+    0.016811190954898036,
+    0.9999999999999998
+  ]
+}

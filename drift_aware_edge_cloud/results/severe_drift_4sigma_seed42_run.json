@@ -1,0 +1,76 @@
+{
+  "seed": 42,
+  "magnitude": 4.0,
+  "s_base": 0.12864655656667054,
+  "delta_s": 0.4239003679974601,
+  "snr": 2.6233725218423123,
+  "min_r_t": 0.5001744282306462,
+  "edge_count": 25000,
+  "hybrid_count": 0,
+  "cloud_count": 0,
+  "switches": 0,
+  "persistent_events": 100,
+  "adaptation_events_count": 2,
+  "scenario": "SCENARIO D (OTHER): min_R_t = 0.5002, EDGE=25000, HYBRID=0, CLOUD=0, Adaptations=2, Deployed=False",
+  "metrics_pre": {
+    "acc": 0.9976,
+    "prec": 0.4988,
+    "rec": 0.5,
+    "f1": 0.49939927913496196,
+    "mcc": 0.0,
+    "cm": [
+      [
+        12470,
+        0
+      ],
+      [
+        30,
+        0
+      ]
+    ]
+  },
+  "metrics_post": {
+    "acc": 0.996,
+    "prec": 0.498,
+    "rec": 0.5,
+    "f1": 0.49899799599198397,
+    "mcc": 0.0,
+    "cm": [
+      [
+        12450,
+        0
+      ],
+      [
+        50,
+        0
+      ]
+    ]
+  },
+  "metrics_full": {
+    "acc": 0.9968,
+    "prec": 0.4984,
+    "rec": 0.5,
+    "f1": 0.49919871794871795,
+    "mcc": 0.0,
+    "cm": [
+      [
+        24920,
+        0
+      ],
+      [
+        80,
+        0
+      ]
+    ]
+  },
+  "deployer_stats": {
+    "candidate_version": null,
+    "cloud_version": "v1",
+    "edge_version": "v1",
+    "active_system_version": "v1",
+    "total_deployments": 0,
+    "successful_deployments": 0,
+    "rolled_back_deployments": 0,
+    "failed_deployments": 0
+  }
+}

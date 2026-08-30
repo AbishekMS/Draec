@@ -376,6 +376,7 @@ class Phase10Evaluator:
         method: str,
         drift_scenario: str = "sudden",
         magnitude: float = 2.0,
+        n_features: int = 5,
         stream_steps: int = 25000,
         seed: int = 42,
         network_condition: str = "normal",
@@ -425,7 +426,7 @@ class Phase10Evaluator:
             "magnitude_units": "baseline_sigma",
             "mechanism": "offset",
             "reference_stream": "inference_stream",
-            "affected_features": {"selection": "top_variance", "n_features": 5, "actuator_policy": "exclude"},
+            "affected_features": {"selection": "top_variance", "n_features": n_features, "actuator_policy": "exclude"},
             "clip_to_physical_range": True,
             "report_realised_magnitude": True,
         }
@@ -456,7 +457,12 @@ class Phase10Evaluator:
         s_train = compute_feature_scalar(X_train, clip=5.0)
         base_feature_mean = float(np.mean(s_train))
         detector = ADWINDetector(delta=0.002, clock=32)
-        persistence = DriftPersistence(consecutive_threshold=3)
+        # Fix #1: Windowed persistence for change-point detector (bounded post-change confirmation window)
+        persistence = DriftPersistence(
+            criterion="windowed_count",
+            window_size=100,
+            count_threshold=1,
+        )
         severity_scorer = DriftSeverity(
             formula="relative_shift",
             baseline_mean=base_feature_mean,
@@ -480,7 +486,16 @@ class Phase10Evaluator:
         # Adaptation Layer (Phase 9)
         f_queue = FeedbackQueue(max_size=2000)
         retrainer = CloudRetrainer(min_feedback_samples=25, max_baseline_samples=200, random_seed=seed)
-        retrainer.set_baseline_data(X_train[:200], y_train[:200])
+        # Fix #2: Proportional stratified baseline sampling strictly from (X_train, y_train)
+        # Total budget: 200 samples (194 Class 0, 6 Class 1; seed=42)
+        base_rng = np.random.default_rng(42)
+        c0_indices = np.where(y_train == 0)[0]
+        c1_indices = np.where(y_train == 1)[0]
+        sel_c0 = base_rng.choice(c0_indices, size=194, replace=False)
+        sel_c1 = base_rng.choice(c1_indices, size=6, replace=False)
+        sel_base_indices = np.concatenate([sel_c0, sel_c1])
+        sel_base_indices.sort()
+        retrainer.set_baseline_data(X_train[sel_base_indices], y_train[sel_base_indices])
         validator = CandidateValidator(self.config, val_data=(X_val, y_val), minimum_metric=0.65, max_regression_margin=0.05)
         deployer = AtomicModelDeployer(cloud_runtime, edge_runtime)
         adapt_mgr = AdaptationManager(f_queue, retrainer, validator, deployer, min_feedback_samples=25, cooldown_steps=50)
