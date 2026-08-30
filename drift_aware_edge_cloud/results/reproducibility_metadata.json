@@ -10,10 +10,10 @@
   "experimental_unit": "independent random seed",
   "seeds_evaluated": [
     42,
-    43,
-    44,
-    45,
-    46
+    123,
+    456,
+    789,
+    2024
   ],
   "statistical_protocol": "Paired hypothesis testing across random seeds (Wilcoxon / paired t-test)",
   "completeness_matrix": {

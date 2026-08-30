@@ -1,5 +1,5 @@
-condition,total_transmissions,delivered,loss_rate,mean_simulated_latency_ms,status
-normal,300,300,0.0,19.931668023948145,SIMULATED
-high_latency,300,300,0.0,79.65834011974073,SIMULATED
-packet_loss,300,300,0.0,19.33899943177689,SIMULATED
-disconnected,300,300,0.0,0.0,SIMULATED
+condition,total_transmissions,delivered,delivery_rate,failure_rate,loss_rate,mean_simulated_latency_ms,status
+normal,0,0,0.0,1.0,0.0,,SIMULATED
+high_latency,0,0,0.0,1.0,0.0,,SIMULATED
+packet_loss,0,0,0.0,1.0,0.0,,SIMULATED
+disconnected,0,0,0.0,1.0,0.0,,SIMULATED

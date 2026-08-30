@@ -10,9 +10,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from src.drift import ADWINDetector, DriftPersistence, DriftPipeline, DriftSeverity
 from src.metrics.decision import compute_routing_metrics
 from src.metrics.drift import compute_drift_metrics
-from src.metrics.evaluation import compute_confidence_interval, find_representative_window
+from src.metrics.evaluation import (
+    compute_confidence_interval,
+    compute_feature_scalar,
+    find_representative_window,
+)
 from src.metrics.prediction import compute_classification_metrics, compute_pre_post_metrics
 from src.metrics.system import (
     compute_execution_reliability,
@@ -21,6 +26,7 @@ from src.metrics.system import (
     get_metric_completeness_matrix,
     get_unmeasured_system_status,
 )
+from src.reliability.estimator import ReliabilityEstimator
 
 
 def test_classification_metrics_basic():
@@ -215,3 +221,140 @@ def test_find_representative_window_logic():
     y_empty = np.zeros(50, dtype=int)
     with pytest.raises(ValueError, match="No contiguous window"):
         find_representative_window(y_empty, window_size=20, min_minority_count=1)
+
+
+def test_regression_prediction_probability_extraction():
+    """TEST A: A dictionary {0: 0.8, 1: 0.2} must extract probabilities, NOT dict keys."""
+    raw_probs = {0: 0.8, 1: 0.2}
+    # Unpacking dict keys would give p0=0, p1=1
+    p0 = float(raw_probs.get(0, 0.0))
+    p1 = float(raw_probs.get(1, 0.0))
+    assert p0 == 0.8
+    assert p1 == 0.2
+    assert p0 != 0
+    assert p1 != 1
+
+    # In ADWINDetector:
+    detector = ADWINDetector(monitored_signal="prediction_probability")
+    detector.update_from_prediction(raw_probs)
+    assert detector.last_signal_value == 0.2  # class 1 prob, NOT 1.0
+
+
+def test_regression_drift_pipeline_integration_and_severity():
+    """TEST B & C: Verify DriftPipeline integration and proper DriftSeverity calculation."""
+    detector = ADWINDetector(delta=0.002, clock=32, monitored_signal="prediction_probability")
+    persistence = DriftPersistence(consecutive_threshold=3)
+    severity_scorer = DriftSeverity(
+        formula="relative_shift",
+        baseline_mean=0.02,
+        max_shift=0.98,
+        smoothing_factor=0.8,
+    )
+    pipeline = DriftPipeline(
+        detector=detector,
+        persistence=persistence,
+        severity=severity_scorer,
+    )
+
+    # Observation with normal class-1 prob = 0.02
+    status = pipeline.update_from_prediction({0: 0.98, 1: 0.02})
+    assert status.monitored_value == 0.02
+    assert status.raw_severity == 0.0  # |0.02 - 0.02| / 0.98 == 0.0
+    assert status.smoothed_severity == 0.0
+    # Must NOT be derived from abs(drift_val - 0.5) * 2.0 (which would be |1.0 - 0.5|*2 = 1.0)
+    assert status.smoothed_severity != 1.0
+
+
+def test_regression_causal_delayed_feedback_reliability():
+    """TEST D: Verify that eligible delayed feedback changes E_t with causal timing."""
+    rel_est = ReliabilityEstimator(alpha_E=0.8)
+    assert rel_est.current_error == 0.0
+
+    # Steps 0 to 14: no feedback eligible yet
+    for _ in range(15):
+        score = rel_est.update(probs={0: 1.0, 1: 0.0}, quality=[True] * 37)
+        assert score.inputs.error == 0.0
+        assert rel_est.current_error == 0.0
+
+    # At step 15: feedback from step 0 arrives: model predicted 0, true label was 1 (error = 1.0)
+    score15 = rel_est.update(
+        probs={0: 1.0, 1: 0.0},
+        quality=[True] * 37,
+        y_true=1,
+        y_pred=0,
+    )
+    # E_15 = 0.8 * 0.0 + 0.2 * 1.0 = 0.2
+    assert score15.inputs.error == pytest.approx(0.2, abs=1e-5)
+    assert rel_est.current_error == pytest.approx(0.2, abs=1e-5)
+
+    # At step 16: feedback from step 1 arrives: model predicted 0, true label was 0 (error = 0.0)
+    score16 = rel_est.update(
+        probs={0: 1.0, 1: 0.0},
+        quality=[True] * 37,
+        y_true=0,
+        y_pred=0,
+    )
+    # E_16 = 0.8 * 0.2 + 0.2 * 0.0 = 0.16
+    assert score16.inputs.error == pytest.approx(0.16, abs=1e-5)
+    assert rel_est.current_error == pytest.approx(0.16, abs=1e-5)
+
+
+def test_feature_scalar_calculation_and_clipping():
+    """Verify S(x) = mean(min(|x|, 5.0)) and values > 5.0 or < -5.0 are clipped."""
+    # 4 features: 1.0, -3.0, 10.0, -20.0
+    # Abs: 1.0, 3.0, 10.0, 20.0
+    # Clipped to 5.0: 1.0, 3.0, 5.0, 5.0 -> mean = 14.0 / 4 = 3.5
+    x = np.array([1.0, -3.0, 10.0, -20.0])
+    s = compute_feature_scalar(x, clip=5.0)
+    assert isinstance(s, float)
+    assert s == pytest.approx(3.5, abs=1e-6)
+
+    # 2D matrix: 2 rows of 4 features
+    X = np.array([
+        [1.0, -3.0, 10.0, -20.0],
+        [0.0, 0.0, 0.0, 0.0],
+    ])
+    s_arr = compute_feature_scalar(X, clip=5.0)
+    assert isinstance(s_arr, np.ndarray)
+    assert len(s_arr) == 2
+    assert s_arr[0] == pytest.approx(3.5, abs=1e-6)
+    assert s_arr[1] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_feature_scalar_baseline_calculation():
+    """Verify baseline is calculated strictly from X_train."""
+    X_train_mock = np.ones((100, 37)) * 0.5  # all 0.5
+    s_train = compute_feature_scalar(X_train_mock, clip=5.0)
+    base_mean = float(np.mean(s_train))
+    assert base_mean == pytest.approx(0.5, abs=1e-6)
+
+
+def test_drift_pipeline_update_scalar_integration():
+    """Verify update_scalar reaches ADWIN, persistence, and severity according to contract."""
+    det = ADWINDetector(delta=0.002, clock=32)
+    persist = DriftPersistence(consecutive_threshold=3)
+    sev = DriftSeverity(formula="relative_shift", baseline_mean=0.5, max_shift=1.0, smoothing_factor=0.8)
+    pipeline = DriftPipeline(detector=det, persistence=persist, severity=sev)
+
+    # Normal scalar
+    status = pipeline.update_scalar(0.5)
+    assert status.monitored_value == 0.5
+    assert status.raw_severity == 0.0
+    assert status.drift_detected is False
+    assert status.is_persistent is False
+
+    # Shifted scalar
+    status2 = pipeline.update_scalar(1.0)
+    assert status2.monitored_value == 1.0
+    # |1.0 - 0.5| / 1.0 = 0.5
+    assert status2.raw_severity == pytest.approx(0.5, abs=1e-6)
+
+
+def test_feature_scalar_causality():
+    """Verify feature-space signal does not require y_true, y_pred, or drift ground truth."""
+    x_t = np.random.RandomState(42).randn(37)
+    # Causal call using ONLY x_t:
+    s_t = compute_feature_scalar(x_t, clip=5.0)
+    assert isinstance(s_t, float)
+    assert not np.isnan(s_t)
+    assert not np.isinf(s_t)

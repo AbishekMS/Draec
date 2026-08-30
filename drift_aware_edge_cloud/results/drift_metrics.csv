@@ -1,6 +1,6 @@
 drift_scenario,drift_onset,first_detection_point,detection_delay,detection_status,total_alarms,false_alarms_pre_drift,post_drift_alarms,transient_alarms,persistent_events,mean_severity,max_severity,post_drift_mean_severity,seed
-drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,42
-drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,43
-drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,44
-drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,45
-drift_injected,250,,,NOT DETECTED,0,0,0,0,0,1.0,1.0,1.0,46
+drift_injected,12500,12575,75,DETECTED,1,0,1,1,0,0.12051666473340131,0.729870308737376,0.18493593014054238,42
+drift_injected,12500,12575,75,DETECTED,1,0,1,1,0,0.12051666473340131,0.729870308737376,0.18493593014054238,123
+drift_injected,12500,12575,75,DETECTED,1,0,1,1,0,0.12051666473340131,0.729870308737376,0.18493593014054238,456
+drift_injected,12500,12575,75,DETECTED,1,0,1,1,0,0.12051666473340131,0.729870308737376,0.18493593014054238,789
+drift_injected,12500,12575,75,DETECTED,1,0,1,1,0,0.12051666473340131,0.729870308737376,0.18493593014054238,2024

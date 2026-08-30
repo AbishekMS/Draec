@@ -14,6 +14,7 @@ from src.metrics.drift import compute_drift_metrics
 from src.metrics.evaluation import (
     Phase10Evaluator,
     compute_confidence_interval,
+    compute_feature_scalar,
     find_representative_window,
 )
 from src.metrics.prediction import compute_classification_metrics, compute_pre_post_metrics
@@ -28,6 +29,7 @@ from src.metrics.system import (
 __all__ = [
     "Phase10Evaluator",
     "find_representative_window",
+    "compute_feature_scalar",
     "compute_confidence_interval",
     "compute_classification_metrics",
     "compute_pre_post_metrics",

@@ -38,9 +38,14 @@ from src.decision.engine import AdaptiveController, StaticBaselineController
 from src.deployment.environment import DeploymentEnvironment
 from src.deployment.network import NetworkSimulator
 from src.deployment.runtimes import CloudRuntime, EdgeRuntime
-from src.drift.adwin_detector import ADWINDetector
-from src.drift.persistence import DriftPersistence
-from src.drift.severity import DriftSeverity
+from src.drift import (
+    ADWINDetector,
+    DriftPersistence,
+    DriftPipeline,
+    DriftSeverity,
+    DriftStatus,
+    compute_baseline_signal_mean,
+)
 from src.metrics.decision import compute_routing_metrics
 from src.metrics.drift import compute_drift_metrics
 from src.metrics.prediction import compute_classification_metrics, compute_pre_post_metrics
@@ -119,6 +124,32 @@ def find_representative_window(
             f"No contiguous window of size {window_size} found with >= {min_minority_count} minority in both halves"
         )
     return int(valid_indices[0])
+
+
+def compute_feature_scalar(x: np.ndarray, clip: float = 5.0) -> float | np.ndarray:
+    """Compute the generic 37-feature robust standardized deviation (Winsorized L1 mean).
+
+    Equation:
+        S(x) = (1/D) * sum_{j=1}^D min(|x_j|, clip)
+    where x is already standard-score normalized relative to the frozen baseline.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Standardized feature vector (1D) or matrix (2D).
+    clip : float, default=5.0
+        Outlier clipping threshold in baseline standard deviation units.
+
+    Returns
+    -------
+    float or np.ndarray
+        Scalar feature deviation (float if 1D) or array of deviations (if 2D).
+    """
+    arr = np.asarray(x, dtype=float)
+    clipped_abs = np.clip(np.abs(arr), 0.0, float(clip))
+    if arr.ndim == 1:
+        return float(np.mean(clipped_abs))
+    return np.mean(clipped_abs, axis=1)
 
 
 class Phase10Evaluator:
@@ -421,11 +452,26 @@ class Phase10Evaluator:
         cloud_runtime = CloudRuntime(cloud_model)
         deploy_env = DeploymentEnvironment(edge_runtime, cloud_runtime, net, fallback_confidence_threshold=0.60)
 
-        # Drift detectors and estimators
+        # Drift Pipeline (Phase 3) - Feature-Space Drift Detection (Option B)
+        s_train = compute_feature_scalar(X_train, clip=5.0)
+        base_feature_mean = float(np.mean(s_train))
         detector = ADWINDetector(delta=0.002, clock=32)
         persistence = DriftPersistence(consecutive_threshold=3)
-        severity_scorer = DriftSeverity(baseline_mean=0.5, max_expected_shift=0.5, smoothing_alpha=0.6)
-        reliability_est = ReliabilityEstimator(alpha_E=0.8, weights={"confidence": 0.25, "error": 0.25, "drift": 0.25, "quality": 0.25})
+        severity_scorer = DriftSeverity(
+            formula="relative_shift",
+            baseline_mean=base_feature_mean,
+            max_shift=1.0,
+            smoothing_factor=0.8,
+        )
+        drift_pipeline = DriftPipeline(
+            detector=detector,
+            persistence=persistence,
+            severity=severity_scorer,
+        )
+        reliability_est = ReliabilityEstimator(
+            alpha_E=0.8,
+            weights={"confidence": 0.25, "error": 0.25, "drift": 0.25, "quality": 0.25},
+        )
 
         # Decision Controller
         adaptive_ctrl = AdaptiveController(critical_cloud_threshold=0.30, cloud_threshold=0.50, edge_return_threshold=0.70)
@@ -458,32 +504,56 @@ class Phase10Evaluator:
 
         for t in range(len(X_stream)):
             x_t = X_stream[t]
-            p0, p1 = edge_model.predict_proba_one(x_t)
+            # Proper dictionary probability extraction (Section 1)
+            raw_probs = edge_model.predict_proba_one(x_t)
+            p0 = float(raw_probs.get(0, 0.0))
+            p1 = float(raw_probs.get(1, 0.0))
             prob_dict = {0: p0, 1: p1}
+            edge_pred = 1 if p1 >= p0 else 0
 
-            # 1. Drift Detection
-            drift_val = max(p0, p1)
-            adwin_flag = detector.update(drift_val)
-            if adwin_flag:
+            # 1. Feature-Space Drift Detection via existing Phase 3 DriftPipeline (Option B)
+            s_t = float(compute_feature_scalar(x_t, clip=5.0))
+            drift_status = drift_pipeline.update_scalar(s_t)
+            if drift_status.drift_detected:
                 adwin_detections.append(t)
-            persist_bool = persistence.update(adwin_flag)
-            if adwin_flag and not persist_bool:
+            if drift_status.drift_detected and not drift_status.is_persistent:
                 transient_alarms += 1
-            if persist_bool:
+            if drift_status.is_persistent:
                 persistent_events += 1
 
-            smooth_sev = severity_scorer.update(abs(drift_val - 0.5) * 2.0)
+            smooth_sev = drift_status.smoothed_severity
             d_t_history.append(smooth_sev)
 
-            # 2. Reliability Estimation
+            # 2. Delayed Feedback Eligibility for Reliability Estimator (Section 3)
+            fb_y_true = None
+            fb_y_pred = None
+            fb_idx = None
+            if adaptation_feedback_available and t >= 15:
+                fb_idx = t - 15
+                fb_y_true = int(y_test1[fb_idx])
+                fb_y_pred = int(predictions[fb_idx])
+
+            # 3. Reliability Estimation with Causal Delayed Feedback (Section 3)
             if method == "ABLATION_NO_DRIFT_SIGNAL":
-                r_res = reliability_est.update(probs=prob_dict, drift_severity=0.0, quality=[True] * 37)
+                r_res = reliability_est.update(
+                    probs=prob_dict,
+                    drift_severity=0.0,
+                    quality=[True] * 37,
+                    y_true=fb_y_true,
+                    y_pred=fb_y_pred,
+                )
             else:
-                r_res = reliability_est.update(probs=prob_dict, drift_severity=smooth_sev, quality=[True] * 37)
+                r_res = reliability_est.update(
+                    probs=prob_dict,
+                    drift_status=drift_status,
+                    quality=[True] * 37,
+                    y_true=fb_y_true,
+                    y_pred=fb_y_pred,
+                )
             r_t = r_res.reliability
             r_t_history.append(r_t)
 
-            # 3. Decision Routing
+            # 4. Decision Routing
             if method == "EDGE_ONLY":
                 act = DecisionAction.EDGE
                 dec_res = DecisionResult(selected_action=act, reliability=r_t, previous_action=prev_act, decision_reason="Policy EDGE_ONLY")
@@ -502,7 +572,7 @@ class Phase10Evaluator:
                 switches += 1
             prev_act = act
 
-            # 4. Execution via Deployment Layer
+            # 5. Execution via Deployment Layer
             exec_res = deploy_env.execute(act, x_t, decision=dec_res, observation_index=t)
             execution_results.append(exec_res)
             pred = exec_res.prediction if exec_res.prediction is not None else 0
@@ -516,7 +586,7 @@ class Phase10Evaluator:
                 latencies_network.append(exec_res.network_latency_s)
             latencies_total.append(exec_res.inference_latency_s)
 
-            # 5. Delayed Operational Feedback & Adaptation (for FULL_DRAEC)
+            # 6. Delayed Operational Feedback & Adaptation (for FULL_DRAEC)
             if method == "FULL_DRAEC" and adaptation_feedback_available:
                 f_queue.record_prediction(
                     observation_index=t,
@@ -526,12 +596,10 @@ class Phase10Evaluator:
                     model_version=deployer.active_system_version,
                     source="operational_adaptation_stream",
                 )
-                # Simulated delayed feedback arriving with delay 15 steps
-                if t >= 15:
-                    feedback_idx = t - 15
-                    true_fb_label = int(y_test1[feedback_idx])
+                # Attach eligible delayed feedback to adaptation manager
+                if fb_y_true is not None and fb_idx is not None:
                     try:
-                        adapt_mgr.provide_feedback(observation_index=feedback_idx, label=true_fb_label, arrival_index=t)
+                        adapt_mgr.provide_feedback(observation_index=fb_idx, label=fb_y_true, arrival_index=t)
                     except Exception:
                         pass
 
@@ -541,7 +609,7 @@ class Phase10Evaluator:
                     prediction=pred,
                     probabilities=prob_dict,
                     model_version=deployer.active_system_version,
-                    is_persistent_drift=persist_bool,
+                    is_persistent_drift=drift_status.is_persistent,
                     drift_severity=smooth_sev,
                 )
                 if adapt_res.triggered:
