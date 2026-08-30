@@ -1,0 +1,47 @@
+[
+  {
+    "seed": 42,
+    "n_adaptations": 2,
+    "candidate_macro_f1": 0.4168552168132304,
+    "validation_status": "REJECTED",
+    "successful_deployments": 0,
+    "final_version": "v1",
+    "validation_reason": "Candidate macro_f1 (0.4169) below minimum threshold (0.7000)."
+  },
+  {
+    "seed": 123,
+    "n_adaptations": 2,
+    "candidate_macro_f1": 0.4164604827038887,
+    "validation_status": "REJECTED",
+    "successful_deployments": 0,
+    "final_version": "v1",
+    "validation_reason": "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+  },
+  {
+    "seed": 456,
+    "n_adaptations": 2,
+    "candidate_macro_f1": 0.4164741031206965,
+    "validation_status": "REJECTED",
+    "successful_deployments": 0,
+    "final_version": "v1",
+    "validation_reason": "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+  },
+  {
+    "seed": 789,
+    "n_adaptations": 2,
+    "candidate_macro_f1": 0.4168552168132304,
+    "validation_status": "REJECTED",
+    "successful_deployments": 0,
+    "final_version": "v1",
+    "validation_reason": "Candidate macro_f1 (0.4169) below minimum threshold (0.7000)."
+  },
+  {
+    "seed": 2024,
+    "n_adaptations": 2,
+    "candidate_macro_f1": 0.4164741031206965,
+    "validation_status": "REJECTED",
+    "successful_deployments": 0,
+    "final_version": "v1",
+    "validation_reason": "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+  }
+]

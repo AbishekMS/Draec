@@ -1,0 +1,596 @@
+{
+  "Config_A_Moderate": {
+    "42": {
+      "seed": 42,
+      "metrics": {
+        "config": "Config_A_Moderate",
+        "seed": 42,
+        "magnitude": 2.0,
+        "n_features": 5,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.5968434120745001,
+        "mean_post_r": 0.9443568415173659,
+        "max_d": 0.729870308737376,
+        "mean_post_d": 0.18493593014054238,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12575,
+        "detection_delay": 75,
+        "persistent_events": 100,
+        "edge_pct": 100.0,
+        "hybrid_pct": 0.0,
+        "cloud_pct": 0.0,
+        "switches": 0,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41651496055641135,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "30f593b9ae70ed6905bcf05e83131563dbbfa18a4d5aec11295bfcfba124a49c"
+      },
+      "candidate_f1s": [
+        0.41651496055641135,
+        0.41651496055641135
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4165) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12575
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "123": {
+      "seed": 123,
+      "metrics": {
+        "config": "Config_A_Moderate",
+        "seed": 123,
+        "magnitude": 2.0,
+        "n_features": 5,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.5968434120745001,
+        "mean_post_r": 0.9443568415173659,
+        "max_d": 0.729870308737376,
+        "mean_post_d": 0.18493593014054238,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12575,
+        "detection_delay": 75,
+        "persistent_events": 100,
+        "edge_pct": 100.0,
+        "hybrid_pct": 0.0,
+        "cloud_pct": 0.0,
+        "switches": 0,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41651496055641135,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "93d0f392ba4bea516f385cd682cc9d499920a285ecb3d6bddb5b9f5f00ebedd9"
+      },
+      "candidate_f1s": [
+        0.41682801091697963,
+        0.41651496055641135
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4168) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12575
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "456": {
+      "seed": 456,
+      "metrics": {
+        "config": "Config_A_Moderate",
+        "seed": 456,
+        "magnitude": 2.0,
+        "n_features": 5,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.5968434120745001,
+        "mean_post_r": 0.9443568415173659,
+        "max_d": 0.729870308737376,
+        "mean_post_d": 0.18493593014054238,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12575,
+        "detection_delay": 75,
+        "persistent_events": 100,
+        "edge_pct": 100.0,
+        "hybrid_pct": 0.0,
+        "cloud_pct": 0.0,
+        "switches": 0,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41401214166842465,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "43adbe478ff90142cf4e93345a60ef04b149e4f5045b114622f56b6a2e31f39a"
+      },
+      "candidate_f1s": [
+        0.4168688188094794,
+        0.41401214166842465
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4169) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4140) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12575
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "789": {
+      "seed": 789,
+      "metrics": {
+        "config": "Config_A_Moderate",
+        "seed": 789,
+        "magnitude": 2.0,
+        "n_features": 5,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.5968434120745001,
+        "mean_post_r": 0.9443568415173659,
+        "max_d": 0.729870308737376,
+        "mean_post_d": 0.18493593014054238,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12575,
+        "detection_delay": 75,
+        "persistent_events": 100,
+        "edge_pct": 100.0,
+        "hybrid_pct": 0.0,
+        "cloud_pct": 0.0,
+        "switches": 0,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41651496055641135,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "2f88296048fad99b0f5d924cf14a3e2a28f4bc6a9fb57d1ad8757c190d4efc7b"
+      },
+      "candidate_f1s": [
+        0.41674637799500736,
+        0.41651496055641135
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4167) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4165) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12575
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "2024": {
+      "seed": 2024,
+      "metrics": {
+        "config": "Config_A_Moderate",
+        "seed": 2024,
+        "magnitude": 2.0,
+        "n_features": 5,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.5968434120745001,
+        "mean_post_r": 0.9443568415173659,
+        "max_d": 0.729870308737376,
+        "mean_post_d": 0.18493593014054238,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12575,
+        "detection_delay": 75,
+        "persistent_events": 100,
+        "edge_pct": 100.0,
+        "hybrid_pct": 0.0,
+        "cloud_pct": 0.0,
+        "switches": 0,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.4163787468484452,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "9c1de87a4271de11c54d7d656df61d65b00865808022c7d7460adc2e77972705"
+      },
+      "candidate_f1s": [
+        0.41682801091697963,
+        0.4163787468484452
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4168) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4164) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12575
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    }
+  },
+  "Config_B_Severe": {
+    "42": {
+      "seed": 42,
+      "metrics": {
+        "config": "Config_B_Severe",
+        "seed": 42,
+        "magnitude": 5.0,
+        "n_features": 8,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.12611392212704003,
+        "mean_post_r": 0.32380757818078815,
+        "max_d": 0.9651778611775044,
+        "mean_post_d": 0.8926195247365452,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12511,
+        "detection_delay": 11,
+        "persistent_events": 100,
+        "edge_pct": 50.032,
+        "hybrid_pct": 0.08,
+        "cloud_pct": 49.888,
+        "switches": 2,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.4168552168132304,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "30f593b9ae70ed6905bcf05e83131563dbbfa18a4d5aec11295bfcfba124a49c"
+      },
+      "candidate_f1s": [
+        0.41401214166842465,
+        0.4168552168132304
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4140) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4169) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12511
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "123": {
+      "seed": 123,
+      "metrics": {
+        "config": "Config_B_Severe",
+        "seed": 123,
+        "magnitude": 5.0,
+        "n_features": 8,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.12611392212704003,
+        "mean_post_r": 0.32380757818078815,
+        "max_d": 0.9651778611775044,
+        "mean_post_d": 0.8926195247365452,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12511,
+        "detection_delay": 11,
+        "persistent_events": 100,
+        "edge_pct": 50.032,
+        "hybrid_pct": 0.08,
+        "cloud_pct": 49.888,
+        "switches": 2,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.4168688188094794,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "93d0f392ba4bea516f385cd682cc9d499920a285ecb3d6bddb5b9f5f00ebedd9"
+      },
+      "candidate_f1s": [
+        0.41401214166842465,
+        0.4168688188094794
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4140) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4169) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12511
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "456": {
+      "seed": 456,
+      "metrics": {
+        "config": "Config_B_Severe",
+        "seed": 456,
+        "magnitude": 5.0,
+        "n_features": 8,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.12611392212704003,
+        "mean_post_r": 0.32380757818078815,
+        "max_d": 0.9651778611775044,
+        "mean_post_d": 0.8926195247365452,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12511,
+        "detection_delay": 11,
+        "persistent_events": 100,
+        "edge_pct": 50.032,
+        "hybrid_pct": 0.08,
+        "cloud_pct": 49.888,
+        "switches": 2,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.4168552168132304,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "43adbe478ff90142cf4e93345a60ef04b149e4f5045b114622f56b6a2e31f39a"
+      },
+      "candidate_f1s": [
+        0.41401214166842465,
+        0.4168552168132304
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4140) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4169) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12511
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "789": {
+      "seed": 789,
+      "metrics": {
+        "config": "Config_B_Severe",
+        "seed": 789,
+        "magnitude": 5.0,
+        "n_features": 8,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.12611392212704003,
+        "mean_post_r": 0.32380757818078815,
+        "max_d": 0.9651778611775044,
+        "mean_post_d": 0.8926195247365452,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12511,
+        "detection_delay": 11,
+        "persistent_events": 100,
+        "edge_pct": 50.032,
+        "hybrid_pct": 0.08,
+        "cloud_pct": 49.888,
+        "switches": 2,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41644686165122197,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "2f88296048fad99b0f5d924cf14a3e2a28f4bc6a9fb57d1ad8757c190d4efc7b"
+      },
+      "candidate_f1s": [
+        0.41651496055641135,
+        0.41644686165122197
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4165) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4164) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12511
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    },
+    "2024": {
+      "seed": 2024,
+      "metrics": {
+        "config": "Config_B_Severe",
+        "seed": 2024,
+        "magnitude": 5.0,
+        "n_features": 8,
+        "post_accuracy": 0.996,
+        "post_macro_f1": 0.49899799599198397,
+        "post_mcc": 0.0,
+        "post_precision": 0.498,
+        "post_recall": 0.5,
+        "min_r": 0.12611392212704003,
+        "mean_post_r": 0.32380757818078815,
+        "max_d": 0.9651778611775044,
+        "mean_post_d": 0.8926195247365452,
+        "nan_or_inf": false,
+        "within_bounds": true,
+        "pre_alarms": 0,
+        "first_alarm_step": 12511,
+        "detection_delay": 11,
+        "persistent_events": 100,
+        "edge_pct": 50.032,
+        "hybrid_pct": 0.08,
+        "cloud_pct": 49.888,
+        "switches": 2,
+        "adaptation_triggers": 2,
+        "candidate_macro_f1": 0.41682801091697963,
+        "validation_status": "REJECTED",
+        "successful_deployments": 0,
+        "final_version": "v1",
+        "baseline_hash": "9c1de87a4271de11c54d7d656df61d65b00865808022c7d7460adc2e77972705"
+      },
+      "candidate_f1s": [
+        0.4163923710810748,
+        0.41682801091697963
+      ],
+      "candidate_statuses": [
+        "REJECTED",
+        "REJECTED"
+      ],
+      "candidate_reasons": [
+        "Candidate macro_f1 (0.4164) below minimum threshold (0.7000).",
+        "Candidate macro_f1 (0.4168) below minimum threshold (0.7000)."
+      ],
+      "adwin_detections": [
+        12511
+      ],
+      "deployer_stats": {
+        "candidate_version": null,
+        "cloud_version": "v1",
+        "edge_version": "v1",
+        "active_system_version": "v1",
+        "total_deployments": 0,
+        "successful_deployments": 0,
+        "rolled_back_deployments": 0,
+        "failed_deployments": 0
+      }
+    }
+  }
+}

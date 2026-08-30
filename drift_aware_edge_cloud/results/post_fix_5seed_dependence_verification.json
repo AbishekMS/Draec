@@ -1,0 +1,107 @@
+[
+  {
+    "seed": 42,
+    "candidate_macro_f1": 0.4168552168132304,
+    "validation_status": "REJECTED",
+    "adaptation_events": 2,
+    "deployment_count": 0,
+    "final_version": "v1",
+    "baseline_hash": "30f593b9ae70ed6905bcf05e83131563dbbfa18a4d5aec11295bfcfba124a49c",
+    "first_10_indices": [
+      178,
+      551,
+      747,
+      841,
+      903,
+      1058,
+      1415,
+      1541,
+      1641,
+      1846
+    ]
+  },
+  {
+    "seed": 123,
+    "candidate_macro_f1": 0.4168688188094794,
+    "validation_status": "REJECTED",
+    "adaptation_events": 2,
+    "deployment_count": 0,
+    "final_version": "v1",
+    "baseline_hash": "93d0f392ba4bea516f385cd682cc9d499920a285ecb3d6bddb5b9f5f00ebedd9",
+    "first_10_indices": [
+      36,
+      77,
+      143,
+      183,
+      350,
+      360,
+      372,
+      390,
+      539,
+      605
+    ]
+  },
+  {
+    "seed": 456,
+    "candidate_macro_f1": 0.4168552168132304,
+    "validation_status": "REJECTED",
+    "adaptation_events": 2,
+    "deployment_count": 0,
+    "final_version": "v1",
+    "baseline_hash": "43adbe478ff90142cf4e93345a60ef04b149e4f5045b114622f56b6a2e31f39a",
+    "first_10_indices": [
+      220,
+      560,
+      597,
+      1048,
+      1067,
+      1366,
+      1387,
+      1427,
+      1588,
+      1594
+    ]
+  },
+  {
+    "seed": 789,
+    "candidate_macro_f1": 0.41644686165122197,
+    "validation_status": "REJECTED",
+    "adaptation_events": 2,
+    "deployment_count": 0,
+    "final_version": "v1",
+    "baseline_hash": "2f88296048fad99b0f5d924cf14a3e2a28f4bc6a9fb57d1ad8757c190d4efc7b",
+    "first_10_indices": [
+      84,
+      144,
+      414,
+      862,
+      968,
+      1026,
+      1357,
+      1371,
+      1430,
+      1614
+    ]
+  },
+  {
+    "seed": 2024,
+    "candidate_macro_f1": 0.41682801091697963,
+    "validation_status": "REJECTED",
+    "adaptation_events": 2,
+    "deployment_count": 0,
+    "final_version": "v1",
+    "baseline_hash": "9c1de87a4271de11c54d7d656df61d65b00865808022c7d7460adc2e77972705",
+    "first_10_indices": [
+      14,
+      111,
+      187,
+      284,
+      310,
+      327,
+      374,
+      578,
+      792,
+      1025
+    ]
+  }
+]

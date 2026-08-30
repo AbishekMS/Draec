@@ -487,8 +487,8 @@ class Phase10Evaluator:
         f_queue = FeedbackQueue(max_size=2000)
         retrainer = CloudRetrainer(min_feedback_samples=25, max_baseline_samples=200, random_seed=seed)
         # Fix #2: Proportional stratified baseline sampling strictly from (X_train, y_train)
-        # Total budget: 200 samples (194 Class 0, 6 Class 1; seed=42)
-        base_rng = np.random.default_rng(42)
+        # Total budget: 200 samples (194 Class 0, 6 Class 1; seeded by run seed)
+        base_rng = np.random.default_rng(seed)
         c0_indices = np.where(y_train == 0)[0]
         c1_indices = np.where(y_train == 1)[0]
         sel_c0 = base_rng.choice(c0_indices, size=194, replace=False)
