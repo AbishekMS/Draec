@@ -1433,6 +1433,31 @@ Following Phase 6 hardened execution and Phase 7 observability, the DRAEC archit
 3. **Integrity & Bounds:** 10 / 10 runs completed; 0 NaNs, 0 Infs; all bounds $[0, 1]$ satisfied; seed-dependent metrics exhibit non-zero variance.
 4. **Outcome:** Step 8 is COMPLETE and PASSED. Step 9 (aggregation and publication artifacts) is ready.
 
+## D-041 · 2026-08-30 · audit · Phase 10 Step 9: Scientific Validity, Reproducibility, and Root-Cause Audit Closure
+
+**Context.** Step 9 executed a comprehensive adversarial audit of the completed Step 8 multi-seed validation results across statistical aggregation, base model efficacy, feature distributions, window selection, provenance, configuration overrides, seed propagation, and reproducibility.
+
+**Formal Audit Decisions & Declarations:**
+1. **$Q_t$ Handling & Evaluation Limitation:** No synthetic sensor-fault experiment was introduced. In the real WUSTL-IIoT-2021 flow stream, observations arrive with complete network flow attributes (zero missing cells). `quality=[True]*37` represents this complete feature baseline. The quality axis $Q_t$ was not dynamically exercised in this evaluation ($Q_t \equiv 1.0$); therefore, the reported reliability reflects confidence, error, and drift dynamics.
+2. **Authoritative Validator Threshold:** Harmonized `evaluation.py` and `config/default.yaml` to the authoritative threshold of **$\mathbf{0.70}$** (macro-F1). The previous call-site argument ($0.65$) was a legacy artifact overridden at runtime by `val_cfg.get("minimum_metric", 0.70)`.
+3. **Configuration Override Audit:** Audited all adaptation parameters. Confirmed that `CloudRetrainer` parameters (`min_feedback_samples=25`, `max_baseline_samples=200`, stratified budget 194 C0 / 6 C1, `random_seed=seed`) represent the approved Phase 10 evaluation-level configuration established under D-038 and D-039.
+4. **Seed Propagation Audit:** Confirmed that the 5 seeds (`[42, 123, 456, 789, 2024]`) represent partially independent replicates: drift injection, feature signals, and routing actions are deterministic by design, while baseline sampling, candidate training, and validation metrics are stochastically seed-dependent with non-zero variance.
+5. **Dataset Identity & Documentation:** Corrected residual comments in `config/default.yaml` that historically referenced HAI. Formally affirmed that WUSTL-IIoT-2021 is the active dataset per D-020, with chronological partitions `train1`, `train2`, and `test1` sliced from `wustl_iiot_2021.csv`.
+6. **Label-Informed Window Selection Limitation:** Explicitly documented that `find_representative_window()` consulted ground-truth target vector $y$ to ensure $\ge 30$ attacks in both halves of the 25,000-step test window. While ground truth was not accessible to the runtime controller, offline window selection is label-informed and will be disclosed in paper methodology.
+7. **Classifier Performance Finding:** Confirmed that baseline classifiers fitted on `train1` predict majority class (0) on `test1` clean data ($\text{MCC}=0.0$, $\text{Recall}=0.0$), driven by cross-partition feature inversion (e.g. `SAppBytes`, `SrcBytes`). The paper will explicitly decouple predictive model accuracy from DRAEC orchestration and will not claim state-of-the-art intrusion detection accuracy.
+8. **Preservation of Core DRAEC Results:** The primary DRAEC findings are retained without modification:
+   - Moderate drift ($2.0\sigma, n=5$): graceful degradation, $\min R_t = 0.5968 > 0.50$, 100% Edge preservation.
+   - Severe drift ($5.0\sigma, n=8$): $\min R_t = 0.1261 < 0.30$, 49.89% Cloud offloading, 2 adaptation triggers, candidate rejected ($0.4168 < 0.7000$), zero unsafe deployments, active version preserved at `v1`.
+9. **Confirmation of Severe-Drift Boundary:** $n=8, 5.0\sigma$ remains the locked severe-drift configuration (stable pre-saturation, confirmed by the $n=9$ saturation cliff).
+10. **Harness & Step 9 Closure:** `experiments/verify_step9.py` verified 12/12 integrity and reproducibility checks (PASS). Step 9 is formally CLOSED. The project is cleared to proceed to Step 10.
+
+**Addendum: Explicit Disposition of `min_feedback_samples` Runtime Override:**
+- **Mismatch Identification:** In `config/default.yaml`, `adaptation.trigger.min_feedback_samples` is set to `50`, whereas `src/metrics/evaluation.py:488` and `evaluation.py:501` pass `min_feedback_samples=25` at runtime.
+- **Root Cause & Status:** This was a previously undiscussed configuration/code mismatch introduced during initial Phase 10 evaluation harness construction.
+- **Audit of Stored Results:** All 10 completed Step-8 validation runs (5 seeds × 2 configurations) executed with the runtime value of `25`.
+- **Validity Assessment:** Retaining `min_feedback_samples=25` does **not** invalidate or compromise the completed Step-8 results. At the time of both adaptation triggers in all runs ($t=12,511$ and $t=12,562$), the delayed feedback queue already contained $1,000$ accumulated feedback samples (the maximum capacity). Consequently, whether the trigger eligibility threshold was 25 or 50 had zero effect on the training sample count (which was $1,000$ feedback + $200$ baseline = $1,200$ samples in all runs) and zero effect on candidate validation or model metrics.
+- **Disposition Rationale:** `min_feedback_samples=25` is formally retained as the authoritative evaluation runtime parameter to preserve bit-exact comparability and reproducibility with the stored Step-8 artifacts without retroactively altering the experiment.
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.

@@ -1,0 +1,27 @@
+% IEEE Publication Table I: Predictive Classification Performance and Candidate Model Validation
+% Auto-generated from verified Step 8 multi-seed benchmark artifacts (results/step8_combined_runs.csv)
+\begin{table*}[t]
+\centering
+\caption{Predictive Classification and Candidate Model Validation Metrics across Multi-Seed Evaluation}
+\label{tab:predictive_performance}
+\begin{tabular}{lcccccc}
+\hline
+\textbf{Metric} & \textbf{Config A (2.0$\sigma$, $n$=5)} & \textbf{Config B (5.0$\sigma$, $n$=8)} & \textbf{df} & \textbf{Variance Source} & \textbf{Statistical Nature} \\
+\hline
+Post-Drift Accuracy & $0.9960 \pm 0.0000$ & $0.9960 \pm 0.0000$ & -- & Deterministic by Design & Stream \& Offset Invariant$^\dagger$ \\
+Post-Drift Precision & $0.4980 \pm 0.0000$ & $0.4980 \pm 0.0000$ & -- & Deterministic by Design & Minority Blind ($0.0\%$ Attack Prec)$^\dagger$ \\
+Post-Drift Recall & $0.5000 \pm 0.0000$ & $0.5000 \pm 0.0000$ & -- & Deterministic by Design & Majority Only ($100\%$ Benign, $0\%$ Attack)$^\dagger$ \\
+Post-Drift Macro-F1 & $0.4990 \pm 0.0000$ & $0.4990 \pm 0.0000$ & -- & Deterministic by Design & Majority Prediction Floor$^\dagger$ \\
+Post-Drift MCC & $0.0000 \pm 0.0000$ & $0.0000 \pm 0.0000$ & -- & Deterministic by Design & Zero Minority Class Separation$^\dagger$ \\
+\hline
+Candidate Macro-F1 (Val) & $0.4160 \pm 0.0014$ & $0.4168 \pm 0.0002$ & 4 & Stochastic / Seed-Dependent & Genuine Stochastic Variance \\
+\quad 95\% Student-$t$ CI & $[0.4146, 0.4174]$ & $[0.4165, 0.4170]$ & 4 & Stochastic ($s=0.0011 / 0.0002$) & Seeded Retraining Sample \& Fitting \\
+Candidate Status & REJECTED ($10/10$) & REJECTED ($10/10$) & -- & Deterministic Criterion & Failed Threshold ($\tau_{\text{val}} = 0.70$) \\
+Active Model Version & v1 ($10/10$) & v1 ($10/10$) & -- & Deterministic Safety Gate & Zero Unsafe Model Deployments \\
+\hline
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+$^\dagger$ Zero variance in streaming predictive metrics arises from deterministic construction: under the fixed-data chronological test window and deterministic synthetic offset drift, both Edge and Cloud models predict 100\% majority class (benign), detecting zero actual attacks. This reflects pre-existing baseline classifier limitations and class imbalance ($99.68\%$ benign), not robustness. Candidate Macro-F1 is evaluated on validation split \texttt{train2} and exhibits genuine stochastic variance arising from seeded baseline sampling ($\text{budget}=200$) and XGBoost fitting across seeds $[42, 123, 456, 789, 2024]$.
+\end{flushleft}
+\end{table*}

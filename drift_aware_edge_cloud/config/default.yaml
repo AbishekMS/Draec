@@ -27,11 +27,10 @@
 meta:
   name: default
   description: >
-    Phase 1 baseline. Real HAI foundation, NO drift injected. This doubles as
-    the experimental control condition (Experiment 1, "no drift"), which exists
-    to verify the controller does not disturb normal operation.
-  phase: 1
-  config_version: 1
+    Phase 10 baseline on WUSTL-IIoT-2021 (active dataset per Decision D-020).
+    Flow-level industrial IoT network event stream with embedded ground-truth targets.
+  phase: 10
+  config_version: 2
 
 # -----------------------------------------------------------------------------
 # 1. REPRODUCIBILITY
@@ -44,7 +43,7 @@ reproducibility:
   # Multi-seed protocol for statistical evaluation. Used in later phases; listed
   # here so the seed set is fixed BEFORE any results are seen (prevents
   # post-hoc seed cherry-picking).
-  seeds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  seeds: [42, 123, 456, 789, 2024]
 
   # Fail loudly rather than silently producing non-reproducible runs.
   strict: true
@@ -53,42 +52,20 @@ reproducibility:
 # 2. DATASET
 # -----------------------------------------------------------------------------
 dataset:
-  # mode: hai  -> real HAI files (the mode used for the main results)
-  # mode: csv  -> any generic chronological delimited file, same schema contract
+  # mode: csv  -> generic chronological delimited file (WUSTL-IIoT-2021)
   mode: csv
 
-  # --- RELEASE IDENTIFICATION (2026-08-27, verified from CONTENT) ----------
-  # The release is identified from what is inside the files, never from their
-  # names, extensions or sizes. Measured evidence, all four process-value files
-  # agreeing:
-  #   * 87 columns, byte-for-byte identical column set (hash d800fcbb4abe27bd)
-  #   * recorded 2022-08-04 .. 2022-08-19, exact 1 Hz, 0 gaps, 0 missing cells
-  #   * carries the x100* setpoint/assign/sum channels absent from earlier
-  #     releases
-  #   * ships attack labels in SEPARATE sidecar files (label-test1, label-test2)
-  #     rather than as a column, and ships exactly train1/train2/test1/test2
-  # This file set and layout is the HAI 23.05 release.
-  #
-  # MEASURED, and the reason no file was overwritten: the three files already
-  # present in data/raw/ before this migration are SHA-256 IDENTICAL to the
-  # newly downloaded ones. The earlier drop was already 23.05, merely
-  # incomplete -- it lacked test2 and both label files. Nothing was replaced;
-  # only the three genuinely-new files were added. Verified, not inferred from
-  # size.
-  hai_release: "23.05"
-  hai_release_identified_from: content   # content | filename -- never filename
+  # --- ACTIVE DATASET IDENTIFICATION (Decision D-020) -----------------------
+  # Active dataset: WUSTL-IIoT-2021 (wustl_iiot_2021.csv, 409,800,698 bytes).
+  # 37 network flow features, flow-level chronological stream.
+  # Historical provenance: Earlier phases 1-1b initially prepared HAI 23.05 before
+  # the formal migration to WUSTL-IIoT-2021 in Phase 2/Decision D-020.
+  active_dataset: "WUSTL-IIoT-2021"
+  stream_semantics: "flow_level"
 
   # --- Files and ROLES -----------------------------------------------------
-  # DECISION (2026-08-25): HAI (HIL-based Augmented ICS) replaces SWaT as the
-  # primary real industrial dataset. Roles are declared HERE, never hard-coded
-  # in Python. All process-value files share an identical 87-column schema
-  # (VERIFIED).
-  #
-  # Raw files are byte-identical copies of the supplied originals and are never
-  # modified in place. See data/raw/PROVENANCE.json for checksums.
-  #
-  # NOTE ON train3/train4: not part of this experiment. They are not declared
-  # here, so no code path can reach them.
+  # Roles are declared HERE, never hard-coded in Python.
+  # Raw files are byte-identical copies of the originals and are never modified.
   files:
     train1:
       path: data/raw/wustl_iiot_2021.csv

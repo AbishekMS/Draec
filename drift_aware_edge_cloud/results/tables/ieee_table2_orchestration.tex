@@ -1,0 +1,31 @@
+% IEEE Publication Table II: System Orchestration, Reliability Dynamics, and Controller Routing
+% Auto-generated from verified Step 8 multi-seed benchmark artifacts (results/step8_aggregated_summary.csv)
+\begin{table*}[t]
+\centering
+\caption{System Orchestration Dynamics and Controller Routing Metrics across Evaluated Drift Regimes}
+\label{tab:orchestration_dynamics}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Metric} & \textbf{Config A (2.0$\sigma$, $n$=5)} & \textbf{Config B (5.0$\sigma$, $n$=8)} & \textbf{Variance Source} & \textbf{System Behavioral Impact} \\
+\hline
+Drift Onset Step ($t_{\text{drift}}$) & 12,500 & 12,500 & Deterministic & Midpoint synthetic drift injection \\
+ADWIN First Detection ($t_{\text{detect}}$) & 12,575 & 12,511 & Deterministic & Feature-space change-point detection \\
+ADWIN Detection Delay & $75 \pm 0$ steps & $11 \pm 0$ steps & Deterministic & Rapid detection under severe drift \\
+Persistent Drift Events & $100 \pm 0$ & $100 \pm 0$ & Deterministic & 100-step consecutive window confirmation \\
+\hline
+Maximum Drift Severity ($\max D_t$) & $0.7299 \pm 0.0000$ & $0.9652 \pm 0.0000$ & Deterministic & Well-conditioned, strictly $< 1.0$ (non-saturated) \\
+Mean Post-Drift Severity ($\bar{D}_t$) & $0.1849 \pm 0.0000$ & $0.8926 \pm 0.0000$ & Deterministic & Sustained elevated feature shift in Config B \\
+Minimum System Reliability ($\min R_t$) & $0.5968 \pm 0.0000$ & $0.1261 \pm 0.0000$ & Deterministic & Config A: $> \tau_{\text{cloud}}$ (0.50); Config B: $< \tau_{\text{crit}}$ (0.30) \\
+Mean Post-Drift Reliability ($\bar{R}_t$) & $0.9444 \pm 0.0000$ & $0.3238 \pm 0.0000$ & Deterministic & Multi-factor harmonic degradation under severe drift \\
+\hline
+Edge Execution Ratio & $100.000\% \pm 0.000\%$ & $50.032\% \pm 0.000\%$ & Deterministic & Edge-preserving under moderate drift \\
+Hybrid Execution Ratio & $0.000\% \pm 0.000\%$ & $0.080\% \pm 0.000\%$ & Deterministic & Transient hysteresis zone transition \\
+Cloud Offloading Ratio & $0.000\% \pm 0.000\%$ & $49.888\% \pm 0.000\%$ & Deterministic & Robust Cloud offloading under reliability collapse \\
+Controller Offloading Switches & $0 \pm 0$ & $2 \pm 0$ & Deterministic & Clean two-step transition with zero flapping \\
+\hline
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+Note: All trajectory and routing metrics exhibit zero variance across seeds due to deterministic construction: the chronological input stream, the synthetic feature-offset drift mechanism, the ADWIN update equations, the harmonic reliability formulation, and the hysteretic threshold boundaries are deterministic. The controller preserved 100\% Edge execution under moderate drift and switched cleanly to Cloud offloading under severe drift without oscillation.
+\end{flushleft}
+\end{table*}

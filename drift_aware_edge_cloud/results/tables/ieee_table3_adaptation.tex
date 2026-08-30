@@ -1,0 +1,32 @@
+% IEEE Publication Table III: Model Adaptation Lifecycle and Safety Firewall Verification
+% Auto-generated from verified Step 8 multi-seed benchmark artifacts (results/step8_raw_per_seed_results.json)
+\begin{table*}[t]
+\centering
+\caption{Closed-Loop Adaptation Lifecycle Parameters and Safety Firewall Verification Results}
+\label{tab:adaptation_safety}
+\begin{tabular}{lcccc}
+\hline
+\textbf{Adaptation Lifecycle Parameter / Metric} & \textbf{Config A (2.0$\sigma$, $n$=5)} & \textbf{Config B (5.0$\sigma$, $n$=8)} & \textbf{Authoritative Source} & \textbf{Operational Verification} \\
+\hline
+Adaptation Trigger Count & $2 \pm 0$ & $2 \pm 0$ & Step 8 Benchmark & Triggered by persistent drift \& cooldown \\
+Adaptation Cooldown Window & 50 steps & 50 steps & \texttt{evaluation.py:501} & Suppressed redundant retrain attempts \\
+Delayed Feedback Samples at Trigger & 1,000 & 1,000 & \texttt{FeedbackQueue} & Effective queue capacity reached \\
+Stratified Baseline Sample Budget & 200 (194 C0, 6 C1) & 200 (194 C0, 6 C1) & Decision D-038 & Class-prior preserved ($97.26\% / 2.74\%$) \\
+Total Retraining Sample Count & 1,200 & 1,200 & \texttt{CloudRetrainer} & 1,000 feedback + 200 baseline samples \\
+Baseline Sampling Seed & \texttt{seed} (42..2024) & \texttt{seed} (42..2024) & Decision D-039 & 5 distinct hashes verified \\
+Candidate Model Architecture & Cloud XGBoost & Cloud XGBoost & \texttt{CloudXGBoost} & \texttt{random\_state=seed} \\
+\hline
+Candidate Validation Split & \texttt{train2} ($N$=25,000) & \texttt{train2} ($N$=25,000) & Causal Protocol & Independent chronological validation \\
+Effective Validator Threshold ($\tau_{\text{val}}$) & 0.70 (Macro-F1) & 0.70 (Macro-F1) & \texttt{default.yaml:726} & Authoritative safety floor \\
+Candidate Validation Macro-F1 & $0.4160 \pm 0.0014$ & $0.4168 \pm 0.0002$ & Evaluator Trace & Stochastic variance ($s=0.0011 / 0.0002$) \\
+Candidate Validation Outcome & REJECTED ($10/10$) & REJECTED ($10/10$) & \texttt{CandidateValidator} & Candidate failed threshold ($0.4168 < 0.7000$) \\
+Deployment Execution Decision & BLOCKED ($10/10$) & BLOCKED ($10/10$) & \texttt{AtomicDeployer} & Safe rejection of inadequate candidate \\
+Successful Deployments & 0 & 0 & Step 8 Benchmark & Zero unauthorized version promotions \\
+Final Active Model Version & \texttt{v1} ($10/10$) & \texttt{v1} ($10/10$) & Step 8 Benchmark & Uncompromised production baseline preserved \\
+\hline
+\end{tabular}
+\begin{flushleft}
+\footnotesize
+Note: The adaptation manager successfully triggered retraining upon confirmed persistent drift. The candidate XGBoost models failed the safety validation gate on independent validation partition \texttt{train2} due to cross-partition attack signature shifts in WUSTL-IIoT-2021. The \texttt{AtomicModelDeployer} safely blocked deployment across all 10 evaluation runs, demonstrating that the safety firewall operates as designed by preventing degraded candidates from replacing active model \texttt{v1}.
+\end{flushleft}
+\end{table*}

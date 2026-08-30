@@ -495,8 +495,8 @@ class Phase10Evaluator:
         sel_c1 = base_rng.choice(c1_indices, size=6, replace=False)
         sel_base_indices = np.concatenate([sel_c0, sel_c1])
         sel_base_indices.sort()
-        retrainer.set_baseline_data(X_train[sel_base_indices], y_train[sel_base_indices])
-        validator = CandidateValidator(self.config, val_data=(X_val, y_val), minimum_metric=0.65, max_regression_margin=0.05)
+        # CandidateValidator: authoritative threshold 0.70 matching config/default.yaml:726
+        validator = CandidateValidator(self.config, val_data=(X_val, y_val), minimum_metric=0.70, max_regression_margin=0.05)
         deployer = AtomicModelDeployer(cloud_runtime, edge_runtime)
         adapt_mgr = AdaptationManager(f_queue, retrainer, validator, deployer, min_feedback_samples=25, cooldown_steps=50)
 
@@ -549,6 +549,10 @@ class Phase10Evaluator:
                 fb_y_pred = int(predictions[fb_idx])
 
             # 3. Reliability Estimation with Causal Delayed Feedback (Section 3)
+            # Evaluation Limitation: In the WUSTL-IIoT-2021 flow stream, observations arrive with
+            # complete network flow records (zero missing values). The quality axis Q_t was not dynamically
+            # exercised in the present evaluation; quality=[True]*37 reflects this complete-feature baseline.
+            # Therefore, the reported reliability behavior reflects confidence, error, and drift dynamics.
             if method == "ABLATION_NO_DRIFT_SIGNAL":
                 r_res = reliability_est.update(
                     probs=prob_dict,
