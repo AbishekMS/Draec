@@ -12,7 +12,7 @@ import pytest
 
 from src.metrics.decision import compute_routing_metrics
 from src.metrics.drift import compute_drift_metrics
-from src.metrics.evaluation import compute_confidence_interval
+from src.metrics.evaluation import compute_confidence_interval, find_representative_window
 from src.metrics.prediction import compute_classification_metrics, compute_pre_post_metrics
 from src.metrics.system import (
     compute_execution_reliability,
@@ -147,7 +147,9 @@ def test_network_metrics():
     )
     assert res["total_transmissions"] == 50
     assert res["delivered_transmissions"] == 45
+    assert res["failed_transmissions"] == 5
     assert res["delivery_rate"] == 0.90
+    assert res["failure_rate"] == 0.10
     assert res["packet_loss_rate"] == 0.10
     assert "10,240 bytes" in res["bandwidth_usage"]
     assert "SIMULATED NETWORK ONLY" in res["network_simulation_note"]
@@ -187,3 +189,29 @@ def test_confidence_interval_estimation():
     mean_n, std_n, ci_l_n, ci_u_n = compute_confidence_interval(noisy)
     assert mean_n == 3.0
     assert ci_l_n < mean_n < ci_u_n
+
+
+def test_find_representative_window_logic():
+    # 100 samples, window size 20, min minority 3 in both halves
+    y = np.zeros(100, dtype=int)
+    y[[11, 13, 15]] = 1
+    y[[21, 23, 25]] = 1
+
+    start = find_representative_window(y, window_size=20, min_minority_count=3)
+    assert start == 6
+    # Verify both halves satisfy at start
+    assert np.sum(y[start : start + 10] == 1) >= 3
+    assert np.sum(y[start + 10 : start + 20] == 1) >= 3
+    # At start - 1, condition was not satisfied
+    assert np.sum(y[start - 1 : start - 1 + 10] == 1) < 3 or np.sum(y[start - 1 + 10 : start - 1 + 20] == 1) < 3
+
+    # Boundary at end (start = len(y) - window_size = 30)
+    y2 = np.zeros(50, dtype=int)
+    y2[[37, 38, 39, 47, 48, 49]] = 1
+    start2 = find_representative_window(y2, window_size=20, min_minority_count=3)
+    assert start2 == 30
+
+    # Failure case
+    y_empty = np.zeros(50, dtype=int)
+    with pytest.raises(ValueError, match="No contiguous window"):
+        find_representative_window(y_empty, window_size=20, min_minority_count=1)

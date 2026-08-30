@@ -11,7 +11,11 @@ from __future__ import annotations
 
 from src.metrics.decision import compute_routing_metrics
 from src.metrics.drift import compute_drift_metrics
-from src.metrics.evaluation import Phase10Evaluator, compute_confidence_interval
+from src.metrics.evaluation import (
+    Phase10Evaluator,
+    compute_confidence_interval,
+    find_representative_window,
+)
 from src.metrics.prediction import compute_classification_metrics, compute_pre_post_metrics
 from src.metrics.system import (
     compute_execution_reliability,
@@ -23,6 +27,7 @@ from src.metrics.system import (
 
 __all__ = [
     "Phase10Evaluator",
+    "find_representative_window",
     "compute_confidence_interval",
     "compute_classification_metrics",
     "compute_pre_post_metrics",

@@ -17,7 +17,7 @@ from src.utils import config as config_mod
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="DRAEC Phase 10 Scientific Evaluation & Benchmarking")
-    parser.add_argument("--steps", type=int, default=1000, help="Stream steps per evaluation run (default: 1000)")
+    parser.add_argument("--steps", type=int, default=25000, help="Stream steps per evaluation run (default: 25000)")
     parser.add_argument("--seeds", nargs="+", type=int, default=[42, 43, 44, 45, 46], help="Random seeds for multi-seed protocol")
     parser.add_argument("--output-dir", type=str, default="results", help="Directory to save experimental results")
     args = parser.parse_args()

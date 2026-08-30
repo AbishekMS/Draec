@@ -573,3 +573,116 @@ def test_28_end_to_end_smoke_test():
     df = monitor.get_records_dataframe()
     assert len(df) == 3
     assert all(c in df.columns for c in ("network_latency_s", "packet_lost", "selected_action"))
+
+
+# -----------------------------------------------------------------------------
+# 29. Network failure provenance through ExecutionResult and Phase 10 metrics
+# -----------------------------------------------------------------------------
+def test_29_network_failure_provenance_and_execution_result():
+    from src.metrics.system import compute_network_metrics
+
+    edge_m = MockModel(pred=0, proba={0: 0.85, 1: 0.15})
+    cloud_m = MockModel(pred=1, proba={0: 0.10, 1: 0.90})
+
+    # Case A: Normal condition -> delivered
+    net_norm = NetworkSimulator(base_latency_s=0.015, jitter_s=0.0, packet_loss_probability=0.0)
+    env_norm = DeploymentEnvironment(EdgeRuntime(edge_m), CloudRuntime(cloud_m), net_norm)
+    res_norm = env_norm.execute(DecisionAction.CLOUD, {"x": 1})
+    assert res_norm.success is True
+    assert res_norm.packet_lost is False
+    assert res_norm.network_latency_s == pytest.approx(0.015, rel=1e-4)
+
+    # Case B: High-latency condition -> delivered
+    net_high = NetworkSimulator(base_latency_s=0.150, jitter_s=0.0, packet_loss_probability=0.0)
+    env_high = DeploymentEnvironment(EdgeRuntime(edge_m), CloudRuntime(cloud_m), net_high)
+    res_high = env_high.execute(DecisionAction.CLOUD, {"x": 1})
+    assert res_high.success is True
+    assert res_high.packet_lost is False
+    assert res_high.network_latency_s == pytest.approx(0.150, rel=1e-4)
+
+    # Case C: Packet-loss condition -> failed/lost
+    net_loss = NetworkSimulator(packet_loss_probability=1.0)
+    env_loss = DeploymentEnvironment(EdgeRuntime(edge_m), CloudRuntime(cloud_m), net_loss)
+    res_loss = env_loss.execute(DecisionAction.CLOUD, {"x": 1})
+    assert res_loss.success is False
+    assert res_loss.packet_lost is True
+    assert res_loss.prediction is None
+    assert res_loss.status == ExecutionStatus.FAILED
+
+    # Case D: Disconnected condition -> failed/not delivered
+    net_disc = NetworkSimulator(available=False)
+    env_disc = DeploymentEnvironment(EdgeRuntime(edge_m), CloudRuntime(cloud_m), net_disc)
+    res_disc = env_disc.execute(DecisionAction.CLOUD, {"x": 1})
+    assert res_disc.success is False
+    assert res_disc.packet_lost is False
+    assert res_disc.prediction is None
+    assert res_disc.status == ExecutionStatus.FAILED
+    assert "unavailable" in str(res_disc.error).lower() or "disconnected" in str(res_disc.error).lower()
+
+    # Metric accounting verification across the 4 conditions
+    # Normal:
+    m_norm = compute_network_metrics(
+        total_transmissions=1,
+        delivered_transmissions=int(res_norm.success),
+        packet_loss_count=int(res_norm.packet_lost),
+        latencies_s=[res_norm.network_latency_s],
+    )
+    assert m_norm["total_transmissions"] == 1
+    assert m_norm["delivered_transmissions"] == 1
+    assert m_norm["packet_loss_count"] == 0
+    assert m_norm["delivery_rate"] == 1.0
+    assert m_norm["failure_rate"] == 0.0
+    assert m_norm["packet_loss_rate"] == 0.0
+    assert m_norm["simulated_network_latency_ms"]["mean_ms"] is not None
+    assert abs(m_norm["simulated_network_latency_ms"]["mean_ms"] - 15.0) < 1e-3
+
+    # High-latency:
+    m_high = compute_network_metrics(
+        total_transmissions=1,
+        delivered_transmissions=int(res_high.success),
+        packet_loss_count=int(res_high.packet_lost),
+        latencies_s=[res_high.network_latency_s],
+    )
+    assert m_high["total_transmissions"] == 1
+    assert m_high["delivered_transmissions"] == 1
+    assert m_high["packet_loss_count"] == 0
+    assert m_high["delivery_rate"] == 1.0
+    assert m_high["failure_rate"] == 0.0
+    assert m_high["packet_loss_rate"] == 0.0
+    assert m_high["simulated_network_latency_ms"]["mean_ms"] is not None
+    assert abs(m_high["simulated_network_latency_ms"]["mean_ms"] - 150.0) < 1e-3
+
+    # Packet loss:
+    m_loss = compute_network_metrics(
+        total_transmissions=1,
+        delivered_transmissions=int(res_loss.success),
+        packet_loss_count=int(res_loss.packet_lost),
+        latencies_s=[],
+    )
+    assert m_loss["total_transmissions"] == 1
+    assert m_loss["delivered_transmissions"] == 0
+    assert m_loss["packet_loss_count"] == 1
+    assert m_loss["delivery_rate"] == 0.0
+    assert m_loss["failure_rate"] == 1.0
+    assert m_loss["packet_loss_rate"] == 1.0
+    # Must be None, NEVER 0.0
+    assert m_loss["simulated_network_latency_ms"]["mean_ms"] is None
+    assert m_loss["simulated_network_latency_ms"]["mean_ms"] != 0.0
+
+    # Disconnected:
+    m_disc = compute_network_metrics(
+        total_transmissions=1,
+        delivered_transmissions=int(res_disc.success),
+        packet_loss_count=int(res_disc.packet_lost),
+        latencies_s=[],
+    )
+    assert m_disc["total_transmissions"] == 1
+    assert m_disc["delivered_transmissions"] == 0
+    assert m_disc["packet_loss_count"] == 0
+    assert m_disc["delivery_rate"] == 0.0
+    assert m_disc["failure_rate"] == 1.0
+    assert m_disc["packet_loss_rate"] == 0.0
+    # Must be None, NEVER 0.0
+    assert m_disc["simulated_network_latency_ms"]["mean_ms"] is None
+    assert m_disc["simulated_network_latency_ms"]["mean_ms"] != 0.0
+

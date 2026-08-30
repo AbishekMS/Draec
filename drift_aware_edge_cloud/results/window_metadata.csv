@@ -1,0 +1,4 @@
+partition,window_start,window_end,window_size,pre_drift_count,post_drift_count,class1_total,class1_pre_drift,class1_post_drift
+train1,212016,237016,25000,,,686,,
+train2,145577,170577,25000,,,7101,,
+test1,87160,112160,25000,12500.0,12500.0,80,30.0,50.0

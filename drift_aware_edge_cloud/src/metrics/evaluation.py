@@ -93,6 +93,34 @@ def compute_confidence_interval(
     return mean, std, float(mean - margin), float(mean + margin)
 
 
+def find_representative_window(
+    y: np.ndarray,
+    window_size: int = 25000,
+    min_minority_count: int = 30,
+) -> int:
+    """Find the earliest contiguous chronological window of length window_size
+    satisfying Class1(first_half) >= min_minority_count AND Class1(second_half) >= min_minority_count.
+
+    Operates strictly on the causal label sequence without consulting predictions or metrics.
+    Includes start = len(y) - window_size as a valid candidate.
+    """
+    n = len(y)
+    if window_size > n:
+        raise ValueError(f"window_size={window_size} exceeds label length={n}")
+    half = window_size // 2
+    cumsum = np.concatenate(([0], np.cumsum(y == 1)))
+    starts = np.arange(0, n - window_size + 1)
+    h1_counts = cumsum[starts + half] - cumsum[starts]
+    h2_counts = cumsum[starts + window_size] - cumsum[starts + half]
+    valid_mask = (h1_counts >= min_minority_count) & (h2_counts >= min_minority_count)
+    valid_indices = np.where(valid_mask)[0]
+    if len(valid_indices) == 0:
+        raise ValueError(
+            f"No contiguous window of size {window_size} found with >= {min_minority_count} minority in both halves"
+        )
+    return int(valid_indices[0])
+
+
 class Phase10Evaluator:
     """Scientific evaluation orchestrator executing Experiments 1-12 on WUSTL-IIoT-2021."""
 
@@ -118,14 +146,149 @@ class Phase10Evaluator:
 
         self._cached_train_data: tuple[Any, Any, Any, Any] | None = None
         self._cached_val_data: tuple[Any, Any] | None = None
+        self._cached_windowed_data: tuple[Any, ...] | None = None
 
-    def get_train_data(self, max_rows: int | None = 10000) -> tuple[pd.DataFrame, np.ndarray, Any, Any]:
+    def get_windowed_data(
+        self,
+        window_size: int = 25000,
+        min_minority_count: int = 30,
+    ) -> tuple[
+        np.ndarray, np.ndarray, np.ndarray, np.ndarray,
+        loader.LoadedFile, np.ndarray, Any, Any, dict[str, Any]
+    ]:
+        """Causally load deterministic, non-degenerate windows for Phase 10 evaluation.
+
+        Guarantees:
+        - train1 window satisfies Class1(first_half) >= 30 and Class1(second_half) >= 30
+        - train2 window satisfies Class1(first_half) >= 30 and Class1(second_half) >= 30
+        - test1 window satisfies Class1(first_half) >= 30 and Class1(second_half) >= 30
+        - test1 window size == 25,000
+        - Class1(pre-drift) >= 30 and Class1(post-drift) >= 30
+        - Class1(total) == Class1(pre-drift) + Class1(post-drift)
+        """
+        if self._cached_windowed_data is not None:
+            return self._cached_windowed_data
+
+        profile, stats = _get_or_fit_baseline_stats(self.config, root=".")
+
+        # 1. train1 (baseline_train)
+        y_tr1_full = extract_partition_labels(self.config, "train1")
+        s_tr1 = find_representative_window(y_tr1_full, window_size, min_minority_count)
+        e_tr1 = s_tr1 + window_size
+        tr1_file = loader.load_file(self.config, "train1")
+        prep_tr1 = preprocessing.transform(self.config, tr1_file, stats)
+        X_train = prep_tr1.frame.iloc[s_tr1:e_tr1].to_numpy(dtype=float)
+        y_train = y_tr1_full[s_tr1:e_tr1]
+
+        # 2. train2 (baseline_validation)
+        y_tr2_full = extract_partition_labels(self.config, "train2")
+        s_tr2 = find_representative_window(y_tr2_full, window_size, min_minority_count)
+        e_tr2 = s_tr2 + window_size
+        tr2_file = loader.load_file(self.config, "train2")
+        prep_tr2 = preprocessing.transform(self.config, tr2_file, stats)
+        X_val = prep_tr2.frame.iloc[s_tr2:e_tr2].to_numpy(dtype=float)
+        y_val = y_tr2_full[s_tr2:e_tr2]
+
+        # 3. test1 (inference_stream)
+        y_te1_full = extract_partition_labels(self.config, "test1")
+        s_te1 = find_representative_window(y_te1_full, window_size, min_minority_count)
+        e_te1 = s_te1 + window_size
+        te1_file = loader.load_file(self.config, "test1")
+        raw_test1_window = loader.LoadedFile(
+            key=te1_file.key,
+            role=te1_file.role,
+            path=te1_file.path,
+            frame=te1_file.frame.iloc[s_te1:e_te1].reset_index(drop=True),
+            timestamps=te1_file.timestamps.iloc[s_te1:e_te1].reset_index(drop=True),
+            block_id=te1_file.block_id.iloc[s_te1:e_te1].reset_index(drop=True),
+            report=te1_file.report,
+        )
+        y_test1 = y_te1_full[s_te1:e_te1]
+
+        # Explicit Windowing Validation Checks
+        half = window_size // 2
+        c1_pre = int(np.sum(y_test1[:half] == 1))
+        c1_post = int(np.sum(y_test1[half:] == 1))
+        c1_tot = int(np.sum(y_test1 == 1))
+
+        if len(y_test1) != window_size:
+            raise ValueError(f"test1 window size must be {window_size}, got {len(y_test1)}")
+        if c1_pre < min_minority_count:
+            raise ValueError(f"test1 pre-drift minority count {c1_pre} < {min_minority_count}")
+        if c1_post < min_minority_count:
+            raise ValueError(f"test1 post-drift minority count {c1_post} < {min_minority_count}")
+        if c1_tot != (c1_pre + c1_post):
+            raise ValueError(f"test1 minority total {c1_tot} != pre ({c1_pre}) + post ({c1_post})")
+
+        win_meta = {
+            "train1": {
+                "partition": "train1",
+                "role": "baseline_train",
+                "window_start": s_tr1,
+                "window_end": e_tr1,
+                "window_size": window_size,
+                "class0_total": int(np.sum(y_train == 0)),
+                "class1_total": int(np.sum(y_train == 1)),
+                "class1_ratio": float(np.mean(y_train == 1)),
+            },
+            "train2": {
+                "partition": "train2",
+                "role": "baseline_validation",
+                "window_start": s_tr2,
+                "window_end": e_tr2,
+                "window_size": window_size,
+                "class0_total": int(np.sum(y_val == 0)),
+                "class1_total": int(np.sum(y_val == 1)),
+                "class1_ratio": float(np.mean(y_val == 1)),
+            },
+            "test1": {
+                "partition": "test1",
+                "role": "inference_stream",
+                "window_start": s_te1,
+                "window_end": e_te1,
+                "window_size": window_size,
+                "pre_drift_count": half,
+                "post_drift_count": window_size - half,
+                "class0_total": int(np.sum(y_test1 == 0)),
+                "class1_total": c1_tot,
+                "class1_pre_drift": c1_pre,
+                "class1_post_drift": c1_post,
+                "class1_ratio": float(np.mean(y_test1 == 1)),
+            },
+        }
+
+        # Save window metadata
+        with open(self.results_dir / "phase10_window_metadata.json", "w") as f:
+            json.dump(win_meta, f, indent=2)
+
+        meta_rows = [
+            {
+                "partition": p,
+                "window_start": d["window_start"],
+                "window_end": d["window_end"],
+                "window_size": d["window_size"],
+                "pre_drift_count": d.get("pre_drift_count", None),
+                "post_drift_count": d.get("post_drift_count", None),
+                "class1_total": d["class1_total"],
+                "class1_pre_drift": d.get("class1_pre_drift", None),
+                "class1_post_drift": d.get("class1_post_drift", None),
+            }
+            for p, d in win_meta.items()
+        ]
+        pd.DataFrame(meta_rows).to_csv(self.results_dir / "window_metadata.csv", index=False)
+
+        self._cached_windowed_data = (
+            X_train, y_train, X_val, y_val, raw_test1_window, y_test1, stats, profile, win_meta
+        )
+        return self._cached_windowed_data
+
+    def get_train_data(self, max_rows: int | None = 25000) -> tuple[pd.DataFrame, np.ndarray, Any, Any]:
         """Causally load WUSTL baseline training partition train1."""
         if self._cached_train_data is None:
             self._cached_train_data = load_causal_train_data(self.config, max_rows=max_rows)
         return self._cached_train_data
 
-    def get_val_data(self, stats: Any, max_rows: int | None = 5000) -> tuple[pd.DataFrame, np.ndarray]:
+    def get_val_data(self, stats: Any, max_rows: int | None = 25000) -> tuple[pd.DataFrame, np.ndarray]:
         """Causally load WUSTL validation partition train2."""
         if self._cached_val_data is None:
             self._cached_val_data = load_causal_eval_data(self.config, "baseline_validation", stats, max_rows=max_rows)
@@ -134,10 +297,9 @@ class Phase10Evaluator:
     # =========================================================================
     # Experiment 1: Baseline ML Performance
     # =========================================================================
-    def run_experiment_1(self, max_train_rows: int = 10000, max_val_rows: int = 5000) -> pd.DataFrame:
+    def run_experiment_1(self) -> pd.DataFrame:
         """Evaluate pre-drift performance of Edge (Hoeffding Tree) vs Cloud (XGBoost)."""
-        X_train, y_train, stats, profile = self.get_train_data(max_rows=max_train_rows)
-        X_val, y_val = self.get_val_data(stats, max_rows=max_val_rows)
+        X_train, y_train, X_val, y_val, _, _, _, _, _ = self.get_windowed_data()
 
         edge_model = EdgeHoeffdingTree()
         edge_model.fit(X_train, y_train)
@@ -183,7 +345,7 @@ class Phase10Evaluator:
         method: str,
         drift_scenario: str = "sudden",
         magnitude: float = 2.0,
-        stream_steps: int = 1000,
+        stream_steps: int = 25000,
         seed: int = 42,
         network_condition: str = "normal",
         adaptation_feedback_available: bool = True,
@@ -198,19 +360,30 @@ class Phase10Evaluator:
         - FULL_DRAEC
         - ABLATION_NO_DRIFT_SIGNAL
         """
-        # Load baseline & fit frozen stats
-        X_train, y_train, stats, profile = self.get_train_data(max_rows=10000)
-        X_val, y_val = self.get_val_data(stats, max_rows=3000)
+        # Load deterministic windowed data
+        X_train, y_train, X_val, y_val, raw_test1_win, y_test1_win, stats, profile, win_meta = self.get_windowed_data()
 
         edge_model = EdgeHoeffdingTree()
-        edge_model.fit(X_train[:5000], y_train[:5000])
+        edge_model.fit(X_train, y_train)
 
         cloud_model = CloudXGBoost(random_state=seed)
-        cloud_model.fit(X_train[:5000], y_train[:5000])
+        cloud_model.fit(X_train, y_train)
 
-        # Load inference stream test1 and inject configured drift
-        raw_test1 = loader.load_file(self.config, "test1", max_rows=stream_steps)
-        y_test1 = extract_partition_labels(self.config, "inference_stream", max_rows=stream_steps)
+        # Slice stream if stream_steps differs from window_size (e.g. in smaller unit tests)
+        if stream_steps < len(raw_test1_win):
+            raw_test1 = loader.LoadedFile(
+                key=raw_test1_win.key,
+                role=raw_test1_win.role,
+                path=raw_test1_win.path,
+                frame=raw_test1_win.frame.iloc[:stream_steps].reset_index(drop=True),
+                timestamps=raw_test1_win.timestamps.iloc[:stream_steps].reset_index(drop=True),
+                block_id=raw_test1_win.block_id.iloc[:stream_steps].reset_index(drop=True),
+                report=raw_test1_win.report,
+            )
+            y_test1 = y_test1_win[:stream_steps]
+        else:
+            raw_test1 = raw_test1_win
+            y_test1 = y_test1_win
 
         # Drift scenario configuration
         drift_cfg = dict(self.config)
@@ -401,7 +574,7 @@ class Phase10Evaluator:
     # =========================================================================
     # Multi-Seed Driver (Experiments 2 - 12)
     # =========================================================================
-    def evaluate_multi_seed(self, steps_per_run: int = 1000) -> dict[str, Any]:
+    def evaluate_multi_seed(self, steps_per_run: int = 25000) -> dict[str, Any]:
         """Execute multi-seed evaluation across all 5 benchmark methods and ablations."""
         methods = [
             "EDGE_ONLY",
@@ -566,16 +739,25 @@ class Phase10Evaluator:
                 network_condition=cond,
                 seed=42,
             )
+            # Identify executions that attempted network transmission
+            net_ers = [er for er in sim_run["execution_results"] if er.network_latency_s is not None]
+            total_transmissions = len(net_ers)
+            delivered_transmissions = sum(1 for er in net_ers if er.success)
+            packet_loss_count = sum(1 for er in net_ers if getattr(er, "packet_lost", False))
+            delivered_latencies = [er.network_latency_s for er in net_ers if er.success and er.network_latency_s is not None]
+
             net_stats = compute_network_metrics(
-                total_transmissions=len(sim_run["latencies_network"]),
-                delivered_transmissions=len([l for l in sim_run["latencies_network"] if l is not None]),
-                packet_loss_count=sum(1 for er in sim_run["execution_results"] if getattr(er, "packet_lost", False)),
-                latencies_s=sim_run["latencies_network"],
+                total_transmissions=total_transmissions,
+                delivered_transmissions=delivered_transmissions,
+                packet_loss_count=packet_loss_count,
+                latencies_s=delivered_latencies,
             )
             net_rows.append({
                 "condition": cond,
                 "total_transmissions": net_stats["total_transmissions"],
                 "delivered": net_stats["delivered_transmissions"],
+                "delivery_rate": net_stats["delivery_rate"],
+                "failure_rate": net_stats["failure_rate"],
                 "loss_rate": net_stats["packet_loss_rate"],
                 "mean_simulated_latency_ms": net_stats["simulated_network_latency_ms"]["mean_ms"],
                 "status": "SIMULATED",

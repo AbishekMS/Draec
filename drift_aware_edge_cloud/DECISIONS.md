@@ -1184,6 +1184,31 @@ Following Phase 6 hardened execution and Phase 7 observability, the DRAEC archit
 - `pytest tests/test_integrity.py`: 27/27 PASS
 - Full regression suite across Steps 2–5 and Phases 2–9 passing.
 
+## D-030 · 2026-08-30 · decision · Deterministic Temporal Windowing for WUSTL-IIoT-2021 Phase 10
+
+**Context.** In Phase 10 evaluation, initial chronological window slices (`train1[:5000]`, `train2[:3000]`, `test1[:1000]`) contained 100% Class 0 because attacks in WUSTL-IIoT-2021 occur late in the recording sessions (first attack at index 223,772 in `train1`, 158,047 in `train2`, and 90,596 in `test1`). Evaluating on zero minority samples caused complete metric degeneration ($\text{Accuracy}=1.0$, $\text{Macro-F1}=1.0$, $\text{MCC}=0.0$).
+
+**Decision.**
+1. **Deterministic Dataset-Driven Pure Function:**
+   Adopt the pure selection function `find_representative_window(y, window_size, min_minority_count)` that searches chronologically for the earliest contiguous window where both halves independently contain at least `min_minority_count` minority-class (Class 1 / attack) samples:
+   $$\sum_{i=s}^{s + \lfloor W/2 \rfloor - 1} I(y_i = 1) \ge M \quad \text{AND} \quad \sum_{i=s + \lfloor W/2 \rfloor}^{s + W - 1} I(y_i = 1) \ge M$$
+   Candidate start search spans $s \in [0, N - W]$ and includes the boundary $s = N - W$.
+
+2. **Why Minority Representation is Checked Separately in Both Halves:**
+   In Phase 10 streaming simulation, controlled drift is injected at the midpoint ($t = W/2$). The first half represents the pre-drift baseline regime, and the second half represents the post-drift regime. Checking both halves independently guarantees that both pre-drift and post-drift metrics have genuine positive samples, ensuring that Macro-F1, MCC, and metric deltas ($\Delta\text{F1}, \Delta\text{MCC}$) are mathematically well-defined and non-degenerate.
+
+3. **Strict Independence from Model Performance:**
+   Window selection evaluated solely target label arrays $y$. Neither model predictions, probabilities, accuracy, F1, MCC, reliability scores, nor ADWIN alarms were consulted, preventing any performance-driven cherry-picking.
+
+4. **Strict Temporal Causality & No Manipulation:**
+   Chronological ordering within and across partitions (`train1` $\to$ `train2` $\to$ `test1`) is strictly preserved. No observations are shuffled, oversampled, or synthesized.
+
+**Verification.**
+- Documented in `results/phase10_windowing_proposal.md`.
+- Evaluated across candidate sizes $W \in \{5k, 10k, 25k, 50k, 100k\}$ and $M \in \{10, 20, 30, 50, 100\}$.
+- Primary recommendation: $W = 25,000, M = 30$ (`train1[212,016 : 237,016]`, `train2[145,577 : 170,577]`, `test1[87,160 : 112,160]`).
+- Compact alternative: $W = 10,000, M = 20$ (`train1[219,516 : 229,516]`, `train2[153,077 : 163,077]`, `test1[94,886 : 104,886]`).
+
 ---
 
 <!-- Append new entries ABOVE this line, in ascending id order.

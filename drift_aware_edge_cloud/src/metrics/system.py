@@ -14,27 +14,33 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 
-def compute_latency_summary(latencies_s: Sequence[float]) -> dict[str, float]:
+def compute_latency_summary(
+    latencies_s: Sequence[float],
+    empty_as_none: bool = False,
+) -> dict[str, Any]:
     """Compute empirical latency summary statistics from measured wall-clock / simulated quantities.
 
     Parameters:
     - latencies_s: Sequence of measured latency values in seconds.
+    - empty_as_none: If True, return None for statistics when valid latencies are empty.
+                     If False (default), returns 0.0 for backward compatibility.
 
     Returns:
     Dictionary containing mean, median, P95, and max in milliseconds and seconds.
     """
     valid = [float(v) for v in latencies_s if v is not None and not np.isnan(v)]
     if not valid:
+        default_val = None if empty_as_none else 0.0
         return {
             "count": 0,
-            "mean_ms": 0.0,
-            "median_ms": 0.0,
-            "p95_ms": 0.0,
-            "max_ms": 0.0,
-            "mean_s": 0.0,
-            "median_s": 0.0,
-            "p95_s": 0.0,
-            "max_s": 0.0,
+            "mean_ms": default_val,
+            "median_ms": default_val,
+            "p95_ms": default_val,
+            "max_ms": default_val,
+            "mean_s": default_val,
+            "median_s": default_val,
+            "p95_s": default_val,
+            "max_s": default_val,
         }
 
     arr = np.asarray(valid, dtype=float)
@@ -108,21 +114,25 @@ def compute_network_metrics(
     - total_bytes_transmitted: Sum of packet byte sizes if instrumented.
 
     Returns:
-    Dictionary containing delivery rate, loss rate, simulated latency summary, and bandwidth status.
+    Dictionary containing delivery rate, failure rate, loss rate, simulated latency summary, and bandwidth status.
     """
     tot = max(1, int(total_transmissions))
     delivered = int(delivered_transmissions)
     lost = int(packet_loss_count)
+    failed = max(0, tot - delivered)
 
-    lat_summary = compute_latency_summary(latencies_s)
+    # When no transmissions were delivered, latency statistics must be None (never 0.0)
+    lat_summary = compute_latency_summary(latencies_s, empty_as_none=True)
 
     bw_status = f"{total_bytes_transmitted:,} bytes" if total_bytes_transmitted is not None else "NOT MEASURED"
 
     return {
         "total_transmissions": int(total_transmissions),
         "delivered_transmissions": delivered,
+        "failed_transmissions": failed,
         "packet_loss_count": lost,
         "delivery_rate": float(delivered / tot),
+        "failure_rate": float(failed / tot),
         "packet_loss_rate": float(lost / tot),
         "simulated_network_latency_ms": lat_summary,
         "bandwidth_usage": bw_status,

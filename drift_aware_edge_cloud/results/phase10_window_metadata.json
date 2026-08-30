@@ -1,0 +1,36 @@
+{
+  "train1": {
+    "partition": "train1",
+    "role": "baseline_train",
+    "window_start": 212016,
+    "window_end": 237016,
+    "window_size": 25000,
+    "class0_total": 24314,
+    "class1_total": 686,
+    "class1_ratio": 0.02744
+  },
+  "train2": {
+    "partition": "train2",
+    "role": "baseline_validation",
+    "window_start": 145577,
+    "window_end": 170577,
+    "window_size": 25000,
+    "class0_total": 17899,
+    "class1_total": 7101,
+    "class1_ratio": 0.28404
+  },
+  "test1": {
+    "partition": "test1",
+    "role": "inference_stream",
+    "window_start": 87160,
+    "window_end": 112160,
+    "window_size": 25000,
+    "pre_drift_count": 12500,
+    "post_drift_count": 12500,
+    "class0_total": 24920,
+    "class1_total": 80,
+    "class1_pre_drift": 30,
+    "class1_post_drift": 50,
+    "class1_ratio": 0.0032
+  }
+}

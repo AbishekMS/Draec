@@ -136,6 +136,7 @@ class DeploymentExecutionResult:
             cloud_latency_s=self.cloud_latency_s,
             hybrid_latency_s=self.hybrid_latency_s,
             network_latency_s=self.network_latency_s,
+            packet_lost=self.packet_lost,
             error=self.error,
             observation_index=self.observation_index,
             timestamp=self.timestamp,
